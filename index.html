@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cell vs. — Immune Arena</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <section id="screen-menu" class="screen">
+    <div class="menu-box">
+      <h1>CELL <span>vs</span></h1>
+      <p class="tagline">A 2D top-down immune-system arena brawler — walls block your sight, your cell follows your mouse.</p>
+      <div class="menu-buttons">
+        <button data-nav="screen-modeselect">Play</button>
+        <button data-nav="screen-characters">Characters</button>
+        <button data-nav="screen-howto">How to Play</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-modeselect" class="screen hidden">
+    <div class="panel">
+      <h2>Choose a Game Mode</h2>
+      <div class="mode-grid">
+        <button class="mode-card" data-action="pvbot">
+          <div class="mode-title">PvBot — 10 v 10</div>
+          <div class="mode-desc">Pick a side and fight alongside 9 AI teammates against 10 AI pathogens. Capture the three field flags, hold them for score, and outlast the clock. Bots fighting far from you simmer down — your presence is what decides the battle.</div>
+        </button>
+        <button class="mode-card" data-action="pve">
+          <div class="mode-title">PvE Horde</div>
+          <div class="mode-desc">Play a Phage hero alongside 20 AI immune allies, clearing 8 escalating waves of pathogens. Your allies respawn freely — your Phage has a shared pool of 5 lives.</div>
+        </button>
+      </div>
+      <button class="back-btn" data-nav="screen-menu">Back</button>
+    </div>
+  </section>
+
+  <section id="screen-characters" class="screen hidden">
+    <div class="panel">
+      <h2>Characters</h2>
+      <div id="char-grid-display"></div>
+      <button class="back-btn" data-nav="screen-menu">Back</button>
+    </div>
+  </section>
+
+  <section id="screen-howto" class="screen hidden">
+    <div class="panel">
+      <h2>How to Play</h2>
+      <ul class="howto-list">
+        <li><b>Move:</b> WASD or Arrow Keys</li>
+        <li><b>Aim:</b> Your cell always faces your mouse cursor</li>
+        <li><b>Right-click:</b> Primary power — strong, long recharge</li>
+        <li><b>Left-click:</b> Secondary power — weak, fast, usually unlimited ammo</li>
+        <li><b>E:</b> Wall Kit — drop a small temporary wall that blocks movement and sight (up to 2 at a time, long recharge)</li>
+        <li>Walls (and drifting debris) block line of sight — fog of war hides anything you can't directly see.</li>
+        <li>PvBot: 10 immune cells vs 10 pathogens on a random biological map (blood vessel, gut, lungs, lymph node). Capture the North/Center/South flags to score over time, or rack up kills — first to 60 points wins, or whoever leads when the clock hits zero.</li>
+        <li>Bots fighting each other far away from you won't settle the match by themselves — getting involved is what makes things happen.</li>
+        <li>PvE Horde: you play a Phage (bacteriophage/virophage) alongside 20 AI immune allies, clearing 8 escalating waves of pathogens.</li>
+      </ul>
+      <button class="back-btn" data-nav="screen-menu">Back</button>
+    </div>
+  </section>
+
+  <section id="screen-charselect" class="screen hidden">
+    <div class="panel">
+      <h2 id="charselect-title">Choose your character</h2>
+      <div id="charselect-grid"></div>
+      <button id="charselect-confirm" class="confirm-btn hidden">Confirm</button>
+      <button class="back-btn" data-nav="screen-modeselect">Back</button>
+    </div>
+  </section>
+
+  <section id="screen-game" class="screen hidden">
+    <canvas id="gamecanvas"></canvas>
+    <div id="hud">
+      <div id="hud-top">
+        <div id="hud-left">
+          <div id="hud-location"></div>
+          <div id="hud-score"></div>
+          <div id="hud-wave"></div>
+          <div id="hud-flags"></div>
+        </div>
+        <div id="hud-scoreboard"></div>
+      </div>
+      <div id="hud-killfeed"></div>
+      <div id="hud-bottom">
+        <div id="hud-hp-wrap">
+          <div id="hud-hp-bar"><div id="hud-hp-fill"></div></div>
+          <div id="hud-hp-text"></div>
+        </div>
+        <div id="hud-abilities">
+          <div class="ability-icon" id="ability-wall"><span>E</span><div class="cd-overlay"></div><small>Wall Kit</small></div>
+          <div class="ability-icon" id="ability-secondary"><span>LMB</span><div class="cd-overlay"></div><small id="ability-secondary-name"></small></div>
+          <div class="ability-icon" id="ability-primary"><span>RMB</span><div class="cd-overlay"></div><small id="ability-primary-name"></small></div>
+        </div>
+      </div>
+    </div>
+    <div id="respawn-picker" class="hidden">
+      <div class="respawn-box">
+        <h3>Respawn as...</h3>
+        <div id="respawn-grid" class="char-grid small compact"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-matchend" class="screen hidden">
+    <div class="panel">
+      <h2 id="matchend-title"></h2>
+      <p id="matchend-sub"></p>
+      <button class="confirm-btn" data-nav="screen-menu">Main Menu</button>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/map.js"></script>
+<script src="js/characters.js"></script>
+<script src="js/shapes.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
