@@ -31,7 +31,7 @@
         </button>
         <button class="mode-card" data-action="pve">
           <div class="mode-title">PvE Horde</div>
-          <div class="mode-desc">Play a Phage hero alongside 20 AI immune allies, clearing 8 escalating waves of pathogens. Your allies respawn freely — your Phage has a shared pool of 5 lives.</div>
+          <div class="mode-desc">Play a Phage hero (Bacteriophage or Virophage) alongside 20 AI immune allies, clearing 8 escalating waves of pathogens. Your allies respawn freely — your Phage has a shared pool of 5 lives.</div>
         </button>
       </div>
       <button class="back-btn" data-nav="screen-menu">Back</button>
@@ -68,6 +68,7 @@
     <div class="panel">
       <h2 id="charselect-title">Choose your character</h2>
       <div id="charselect-grid"></div>
+      <div id="charselect-detail" class="char-detail hidden"></div>
       <button id="charselect-confirm" class="confirm-btn hidden">Confirm</button>
       <button class="back-btn" data-nav="screen-modeselect">Back</button>
     </div>
@@ -86,6 +87,7 @@
         <div id="hud-scoreboard"></div>
       </div>
       <div id="hud-killfeed"></div>
+      <div id="kill-banner"></div>
       <div id="hud-bottom">
         <div id="hud-hp-wrap">
           <div id="hud-hp-bar"><div id="hud-hp-fill"></div></div>
@@ -102,14 +104,30 @@
       <div class="respawn-box">
         <h3>Respawn as...</h3>
         <div id="respawn-grid" class="char-grid small compact"></div>
+        <div id="respawn-detail" class="char-detail hidden"></div>
+        <button id="respawn-confirm" class="confirm-btn hidden">Respawn</button>
       </div>
     </div>
   </section>
 
   <section id="screen-matchend" class="screen hidden">
-    <div class="panel">
+    <div class="panel matchend-panel">
       <h2 id="matchend-title"></h2>
       <p id="matchend-sub"></p>
+      <div id="matchend-scorebar" class="matchend-scorebar hidden">
+        <div id="matchend-scorebar-immune" class="scorebar-fill immune"></div>
+        <div id="matchend-scorebar-pathogen" class="scorebar-fill pathogen"></div>
+      </div>
+      <div class="matchend-stats-title">Your Performance</div>
+      <div class="matchend-stats">
+        <div class="stat-card"><span class="stat-value" id="me-kills">0</span><span class="stat-label">Kills</span></div>
+        <div class="stat-card"><span class="stat-value" id="me-deaths">0</span><span class="stat-label">Deaths</span></div>
+        <div class="stat-card"><span class="stat-value" id="me-assists">0</span><span class="stat-label">Assists</span></div>
+        <div class="stat-card"><span class="stat-value" id="me-kd">0.0</span><span class="stat-label">K/D Ratio</span></div>
+        <div class="stat-card"><span class="stat-value" id="me-dmg-dealt">0</span><span class="stat-label">Damage Dealt</span></div>
+        <div class="stat-card"><span class="stat-value" id="me-dmg-taken">0</span><span class="stat-label">Damage Taken</span></div>
+      </div>
+      <div id="matchend-weapons" class="matchend-weapons"></div>
       <button class="confirm-btn" data-nav="screen-menu">Main Menu</button>
     </div>
   </section>

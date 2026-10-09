@@ -16,19 +16,34 @@ function createUnit(charId, team, controllerType, loadout) {
     radius: def.radius, baseRadius: def.radius,
     speed: def.speed, baseSpeed: def.speed,
     hp: def.maxHp, maxHp: def.maxHp,
+    shield: def.shield ? def.shield.max : 0,
+    maxShield: def.shield ? def.shield.max : 0,
+    lastShieldHitTime: -999,
     alive: true,
     controllerType: controllerType || 'bot', // 'local' | 'remote' | 'bot'
     input: { mx: 0, my: 0, aim: 0, primary: false, secondary: false, wall: false },
     cd: { primary: 0, secondary: 0, wall: 0 },
     slowFactor: 0,
+    slowUntil: 0,
+    slowAmount: 0,
     devourUntil: 0,
     trailChannel: null,
     pilotingId: null,
     invulnerable: false,
+    invulnerableUntil: 0,
     invisibleUntil: 0,
     summonedBy: null,
     expiresAt: 0,
-    kills: 0, deaths: 0,
+    volley: null,
+    chargeUntil: 0,
+    chargeAngle: 0,
+    chargeSpeed: 0,
+    chargeHitRange: 0,
+    chargeKills: 0,
+    chargeKillCap: Infinity,
+    lastAbilityShape: 'dot',
+    damageContributors: {},
+    kills: 0, deaths: 0, assists: 0,
     name: def.name,
     respawnAt: 0
   };
@@ -50,9 +65,12 @@ function createProjectile(owner, x, y, angle, opts) {
     aoe: opts.aoe || 0,
     homing: !!opts.homing,
     piloted: !!opts.piloted,
+    piercing: !!opts.piercing,
     targetId: opts.targetId || null,
     color: opts.color || '#ffffff',
-    shape: opts.shape || 'dot'
+    shape: opts.shape || 'dot',
+    slow: opts.slow || 0,
+    slowDuration: opts.slowDuration || 0
   };
 }
 
@@ -69,7 +87,9 @@ function createHazard(owner, type, x, y, def) {
     tickDamage: def.tickDamage || 6,
     tickInterval: def.tickInterval || 0.4,
     tickTimer: 0,
-    slow: def.slow || 0.4
+    slow: def.slow || 0.4,
+    blastRadius: def.blastRadius || 0,
+    damage: def.damage || 0
   };
 }
 
@@ -80,19 +100,103 @@ function clearEvents(world) {
 
 const INVIS_DETECT_RANGE = 70;
 
+function creditUnitFor(source, world) {
+  // Clone summons credit their kills/damage back to whoever spawned them.
+  return source && source.summonedBy ? (world.units.find(u => u.id === source.summonedBy) || source) : source;
+}
+
+// Checks whether target has a death-save ability (currently just the
+// bacterium's Dormant Endospore) equipped and off cooldown, and if so,
+// activates it in place of dying: survives at 1 HP, goes invulnerable, and
+// either hands the local player a piloted escape capsule or -- for bots,
+// which have no camera to pilot with -- just teleports it clear instantly.
+function findDeathSaveSlot(unit) {
+  if (unit.abilities.primary && unit.abilities.primary.type === 'endospore_escape') return 'primary';
+  if (unit.abilities.secondary && unit.abilities.secondary.type === 'endospore_escape') return 'secondary';
+  return null;
+}
+
+function triggerDeathSave(target, world) {
+  const slot = findDeathSaveSlot(target);
+  if (!slot || target.cd[slot] > 0 || target.pilotingId) return false;
+  const ab = target.abilities[slot];
+  target.cd[slot] = ab.cooldown;
+  target.lastAbilityShape = ab.shape || defaultShapeForType(ab.type);
+  target.hp = 1;
+
+  if (target.controllerType === 'local') {
+    target.invulnerable = true;
+    const spore = createProjectile(target, target.x, target.y, target.angle,
+      { speed: ab.speed, life: ab.duration, radius: 10, color: getCharacter(target.charId).color, shape: ab.shape, piercing: true });
+    spore.isSpore = true;
+    spore.ownerId = target.id;
+    world.projectiles.push(spore);
+    target.pilotingId = spore.id;
+  } else {
+    // Bots can't drive the piloting camera, so just vanish and reappear a
+    // safe distance away, invulnerable for the same window as the spore.
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 260 + Math.random() * 160;
+    target.x = clamp(target.x + Math.cos(angle) * dist, target.radius, WORLD_W - target.radius);
+    target.y = clamp(target.y + Math.sin(angle) * dist, target.radius, WORLD_H - target.radius);
+    target.hp = Math.max(1, target.maxHp * 0.4);
+    target.invulnerableUntil = world.time + ab.duration;
+  }
+  return true;
+}
+
 function damageUnit(target, amount, source, world, instaKill) {
-  if (!target.alive || target.invulnerable) return;
-  target.hp -= instaKill ? target.hp + 1 : amount;
-  world.events.push({ t: 'hit', attackerId: source ? source.id : null, victimId: target.id, x: target.x, y: target.y });
+  if (!target.alive || target.invulnerable || target.invisibleUntil > world.time || target.invulnerableUntil > world.time) return;
+
+  // A rechargeable shield (e.g. the bacteriophage's) soaks up normal damage
+  // before HP -- but can't stop an instant-kill effect, which bypasses it.
+  if (!instaKill && target.shield > 0 && amount > 0) {
+    target.lastShieldHitTime = world.time;
+    const absorbed = Math.min(target.shield, amount);
+    target.shield -= absorbed;
+    amount -= absorbed;
+  }
+
+  const preHp = target.hp;
+  const dealt = instaKill ? preHp : amount;
+  world.events.push({ t: 'hit', attackerId: source ? source.id : null, victimId: target.id, x: target.x, y: target.y, amount: dealt, weaponShape: (source && source.lastAbilityShape) || 'dot' });
+
+  // A killing blow can be shrugged off entirely by a death-save ability
+  // (e.g. the bacterium's Dormant Endospore) instead of actually landing.
+  if (preHp - dealt <= 0 && triggerDeathSave(target, world)) return;
+
+  target.hp -= instaKill ? preHp + 1 : amount;
+
+  const creditTo = creditUnitFor(source, world);
+  if (creditTo && creditTo.id !== target.id && dealt > 0) {
+    target.damageContributors[creditTo.id] = (target.damageContributors[creditTo.id] || 0) + dealt;
+  }
+
   if (target.hp <= 0) {
     target.hp = 0;
     target.alive = false;
     target.deaths++;
     target.respawnAt = world.time + world.respawnDelay;
-    // Clone summons credit their kills back to whoever spawned them.
-    const creditTo = source && source.summonedBy ? (world.units.find(u => u.id === source.summonedBy) || source) : source;
     if (creditTo && creditTo.id !== target.id) creditTo.kills++;
-    world.events.push({ t: 'kill', killer: creditTo ? creditTo.id : null, victim: target.id });
+
+    // Any other contributor who dealt at least 75% of the victim's max HP
+    // gets credited with a kill too, not just an assist.
+    const threshold = target.maxHp * 0.75;
+    for (const idStr in target.damageContributors) {
+      const cid = Number(idStr);
+      if (creditTo && cid === creditTo.id) continue;
+      const contributor = world.units.find(u => u.id === cid);
+      if (!contributor) continue;
+      const contributed = target.damageContributors[idStr];
+      if (contributed >= threshold) contributor.kills++;
+      else {
+        contributor.assists++;
+        world.events.push({ t: 'assist', unitId: contributor.id, victim: target.id });
+      }
+    }
+    target.damageContributors = {};
+
+    world.events.push({ t: 'kill', killer: creditTo ? creditTo.id : null, victim: target.id, weaponShape: (source && source.lastAbilityShape) || 'dot' });
   }
 }
 
@@ -137,10 +241,31 @@ function lerpAngle(a, b, t) {
   return a + diff * t;
 }
 
+function defaultShapeForType(type) {
+  switch (type) {
+    case 'melee_bite': case 'melee_instakill': return 'claw';
+    case 'net_trap': return 'net';
+    case 'trail_hazard': return 'trail';
+    case 'mine_trap': return 'mine';
+    case 'pulse_aoe': return 'burst';
+    case 'self_buff_devour': return 'devour';
+    case 'nuke_projectile': case 'aoe_projectile': return 'nuke';
+    case 'clone_strike': case 'summon_clone': return 'clone';
+    case 'invisibility': return 'invis';
+    case 'guided_missile': return 'igg3missile';
+    case 'endospore_escape': return 'spore';
+    default: return 'dot';
+  }
+}
+
 function useAbility(unit, slot, world) {
   const def = getCharacter(unit.charId);
   const ab = unit.abilities[slot];
+  // Dormant Endospore is purely passive -- it only fires itself from
+  // triggerDeathSave() the instant a hit would be lethal, never from input.
+  if (ab.type === 'endospore_escape') return;
   unit.cd[slot] = ab.cooldown;
+  unit.lastAbilityShape = ab.shape || defaultShapeForType(ab.type);
 
   switch (ab.type) {
     case 'self_buff_devour': {
@@ -167,6 +292,13 @@ function useAbility(unit, slot, world) {
       world.hazards.push(createHazard(unit, 'net', hx, hy, ab));
       break;
     }
+    case 'mine_trap': {
+      const existing = world.hazards.filter(h => h.ownerId === unit.id && h.type === 'mine');
+      if (existing.length >= ab.maxActive) break;
+      world.hazards.push(createHazard(unit, 'mine', unit.x, unit.y,
+        { radius: ab.triggerRadius, blastRadius: ab.blastRadius, damage: ab.damage, hazardLife: ab.mineLife }));
+      break;
+    }
     case 'trail_hazard': {
       const existing = world.hazards.filter(h => h.ownerId === unit.id && h.type === 'trail');
       if (existing.length >= ab.maxActive) break;
@@ -178,7 +310,7 @@ function useAbility(unit, slot, world) {
     case 'projectile': {
       const a = unit.angle;
       world.projectiles.push(createProjectile(unit, unit.x + Math.cos(a) * (unit.radius + 4), unit.y + Math.sin(a) * (unit.radius + 4), a,
-        { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, color: def.color, shape: ab.shape }));
+        { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, color: def.color, shape: ab.shape, slow: ab.slow, slowDuration: ab.slowDuration }));
       break;
     }
     case 'radial_projectile': {
@@ -213,7 +345,30 @@ function useAbility(unit, slot, world) {
     case 'clone_strike': {
       const target = findNearestEnemy(unit, world);
       world.projectiles.push(createProjectile(unit, unit.x, unit.y, unit.angle,
-        { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, homing: true, targetId: target ? target.id : null, color: def.color, shape: ab.shape }));
+        { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, aoe: ab.aoe, instaKill: true, homing: true, targetId: target ? target.id : null, color: def.color, shape: ab.shape }));
+      break;
+    }
+    case 'parallel_projectile': {
+      const a = unit.angle;
+      const perp = a + Math.PI / 2;
+      const spacing = ab.spacing || 14;
+      const mid = (ab.count - 1) / 2;
+      for (let i = 0; i < ab.count; i++) {
+        const offset = (i - mid) * spacing;
+        const ox = unit.x + Math.cos(a) * (unit.radius + 4) + Math.cos(perp) * offset;
+        const oy = unit.y + Math.sin(a) * (unit.radius + 4) + Math.sin(perp) * offset;
+        world.projectiles.push(createProjectile(unit, ox, oy, a,
+          { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, color: def.color, shape: ab.shape }));
+      }
+      break;
+    }
+    case 'charge_lyse': {
+      unit.chargeUntil = world.time + ab.duration;
+      unit.chargeAngle = unit.angle;
+      unit.chargeSpeed = ab.chargeSpeed;
+      unit.chargeHitRange = ab.range;
+      unit.chargeKills = 0;
+      unit.chargeKillCap = ab.killCap || Infinity;
       break;
     }
     case 'summon_clone': {
@@ -231,6 +386,10 @@ function useAbility(unit, slot, world) {
     }
     case 'invisibility': {
       unit.invisibleUntil = world.time + ab.duration;
+      break;
+    }
+    case 'artillery_volley': {
+      unit.volley = { ability: ab, remaining: ab.volleyCount, timer: 0 };
       break;
     }
     case 'pulse_aoe': {
@@ -251,14 +410,14 @@ function useAbility(unit, slot, world) {
     case 'guided_missile': {
       if (unit.controllerType === 'local') {
         const missile = createProjectile(unit, unit.x, unit.y, unit.angle,
-          { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, piloted: true, color: def.color, shape: ab.shape });
+          { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, piloted: true, piercing: ab.piercing, aoe: ab.aoe, color: def.color, shape: ab.shape });
         world.projectiles.push(missile);
         unit.pilotingId = missile.id;
         unit.invulnerable = true;
       } else {
         const target = findNearestEnemy(unit, world);
         world.projectiles.push(createProjectile(unit, unit.x, unit.y, unit.angle,
-          { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, homing: true, targetId: target ? target.id : null, color: def.color, shape: ab.shape }));
+          { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, homing: true, piercing: ab.piercing, aoe: ab.aoe, targetId: target ? target.id : null, color: def.color, shape: ab.shape }));
       }
       break;
     }
@@ -280,12 +439,32 @@ function updateTrailChannel(unit, world, dt) {
   }
 }
 
+function updateVolley(unit, world, dt) {
+  const v = unit.volley;
+  v.timer -= dt;
+  if (v.timer > 0) return;
+  v.timer = v.ability.volleyInterval;
+  fireVolleyShot(unit, v.ability, world);
+  v.remaining--;
+  if (v.remaining <= 0) unit.volley = null;
+}
+
+function fireVolleyShot(unit, ab, world) {
+  const def = getCharacter(unit.charId);
+  const a = unit.angle + (Math.random() - 0.5) * (ab.spread || 0);
+  world.projectiles.push(createProjectile(unit, unit.x + Math.cos(a) * (unit.radius + 4), unit.y + Math.sin(a) * (unit.radius + 4), a,
+    { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, aoe: ab.aoe, color: def.color, shape: ab.shape }));
+}
+
 function updateUnit(unit, world, dt) {
   if (!unit.alive) return;
 
   const def = getCharacter(unit.charId);
   if (def.regen && unit.hp < unit.maxHp) {
     unit.hp = Math.min(unit.maxHp, unit.hp + unit.maxHp * def.regen * dt);
+  }
+  if (def.shield && unit.shield < unit.maxShield && world.time - unit.lastShieldHitTime > def.shield.regenDelay) {
+    unit.shield = Math.min(unit.maxShield, unit.shield + def.shield.regenRate * dt);
   }
 
   if (unit.devourUntil && unit.devourUntil <= world.time) {
@@ -303,15 +482,36 @@ function updateUnit(unit, world, dt) {
   }
 
   const inp = unit.input;
-  let speed = unit.speed * (1 - (unit.slowFactor || 0));
+  const debuffSlow = unit.slowUntil > world.time ? unit.slowAmount : 0;
+  let speed = unit.speed * (1 - Math.max(unit.slowFactor || 0, debuffSlow));
   unit.slowFactor = 0;
 
-  const len = Math.hypot(inp.mx, inp.my);
-  if (len > 0.001) {
-    unit.x += (inp.mx / len) * speed * dt;
-    unit.y += (inp.my / len) * speed * dt;
+  if (unit.chargeUntil > world.time) {
+    // Tank-charge: commit to the direction locked in at activation, plowing
+    // through and instantly lysing anything touched along the way.
+    unit.x += Math.cos(unit.chargeAngle) * unit.chargeSpeed * dt;
+    unit.y += Math.sin(unit.chargeAngle) * unit.chargeSpeed * dt;
+    unit.angle = unit.chargeAngle;
+    for (const u of world.units) {
+      if (unit.chargeKills >= unit.chargeKillCap) break;
+      if (!u.alive || u.team === unit.team || u.id === unit.id) continue;
+      const d = Math.hypot(u.x - unit.x, u.y - unit.y);
+      if (d < unit.radius + u.radius + unit.chargeHitRange) {
+        damageUnit(u, 0, unit, world, true);
+        if (!u.alive) {
+          unit.chargeKills++;
+          if (unit.chargeKills >= unit.chargeKillCap) unit.chargeUntil = world.time;
+        }
+      }
+    }
+  } else {
+    const len = Math.hypot(inp.mx, inp.my);
+    if (len > 0.001) {
+      unit.x += (inp.mx / len) * speed * dt;
+      unit.y += (inp.my / len) * speed * dt;
+    }
+    unit.angle = inp.aim;
   }
-  unit.angle = inp.aim;
 
   resolveWallCollision(unit, world.obstacles);
 
@@ -320,6 +520,7 @@ function updateUnit(unit, world, dt) {
   if (unit.cd.wall > 0) unit.cd.wall = Math.max(0, unit.cd.wall - dt);
 
   if (unit.trailChannel) updateTrailChannel(unit, world, dt);
+  if (unit.volley) updateVolley(unit, world, dt);
 
   if (unit.cd.primary <= 0) {
     if (unit.abilities.primary.auto ? autoAbilityReady(unit, world, unit.abilities.primary) : inp.primary) useAbility(unit, 'primary', world);
@@ -348,13 +549,15 @@ function useWallKit(unit, world) {
   if (existing.length >= WALL_KIT_MAX_PER_OWNER) return;
   unit.cd.wall = WALL_KIT_COOLDOWN;
   const dist = 55;
-  const horizontal = Math.abs(Math.cos(unit.angle)) > Math.abs(Math.sin(unit.angle));
-  const w = horizontal ? 18 : 90;
-  const h = horizontal ? 90 : 18;
-  const px = clamp(unit.x + Math.cos(unit.angle) * dist, w / 2 + 6, WORLD_W - w / 2 - 6);
-  const py = clamp(unit.y + Math.sin(unit.angle) * dist, h / 2 + 6, WORLD_H - h / 2 - 6);
+  const w = 90, h = 18;
+  // The wall stands perpendicular to the direction you're facing (like a
+  // shield planted in front of you), tilted to match your exact heading.
+  const wallAngle = unit.angle + Math.PI / 2;
+  const margin = Math.hypot(w, h) / 2 + 6;
+  const px = clamp(unit.x + Math.cos(unit.angle) * dist, margin, WORLD_W - margin);
+  const py = clamp(unit.y + Math.sin(unit.angle) * dist, margin, WORLD_H - margin);
   world.tempWalls.push({
-    id: nextEntityId++, x: px - w / 2, y: py - h / 2, w, h,
+    id: nextEntityId++, x: px - w / 2, y: py - h / 2, w, h, angle: wallAngle,
     ownerId: unit.id, expiresAt: world.time + WALL_KIT_LIFE
   });
 }
@@ -364,6 +567,16 @@ function useWallKit(unit, world) {
 function irregularRadiusAt(baseRadius, angle, seed) {
   const wob = Math.sin(angle * 3 + seed) * 0.25 + Math.sin(angle * 5 - seed * 1.7) * 0.15;
   return baseRadius * (1 + wob);
+}
+
+// Like irregularRadiusAt, but the wobble itself drifts over time -- used for
+// things that should visibly stretch/bend/flex while just sitting idle (e.g.
+// a NET trap), rather than holding one fixed irregular shape.
+function flexRadiusAt(baseRadius, angle, seed, t) {
+  const w1 = Math.sin(angle * 2 + seed + t * 0.6) * 0.22;
+  const w2 = Math.sin(angle * 3 - seed * 1.3 + t * 0.9) * 0.13;
+  const w3 = Math.sin(angle * 5 + seed * 2.1 - t * 0.45) * 0.08;
+  return baseRadius * (1 + w1 + w2 + w3);
 }
 
 function applyAoeDamage(p, world, owner) {
@@ -379,6 +592,27 @@ function applyAoeDamage(p, world, owner) {
 }
 
 function updateProjectile(p, world, dt) {
+  if (p.isSpore) {
+    const owner = world.units.find(u => u.id === p.ownerId);
+    if (owner) {
+      const turnRate = 3.4;
+      p.angle = lerpAngle(p.angle, owner.input.aim, Math.min(1, turnRate * dt));
+      p.vx = Math.cos(p.angle) * p.speed;
+      p.vy = Math.sin(p.angle) * p.speed;
+    }
+    p.x = clamp(p.x + p.vx * dt, 20, WORLD_W - 20);
+    p.y = clamp(p.y + p.vy * dt, 20, WORLD_H - 20);
+    p.age += dt;
+    if (p.age > p.life) {
+      p.dead = true;
+      if (owner) {
+        owner.x = clamp(p.x, owner.radius, WORLD_W - owner.radius);
+        owner.y = clamp(p.y, owner.radius, WORLD_H - owner.radius);
+        owner.hp = Math.max(owner.hp, owner.maxHp * 0.4);
+      }
+    }
+    return;
+  }
   if (p.piloted) {
     const owner = world.units.find(u => u.id === p.ownerId);
     if (owner) {
@@ -407,11 +641,22 @@ function updateProjectile(p, world, dt) {
   if (p.age > p.life) { p.dead = true; return; }
   if (p.x < -10 || p.x > WORLD_W + 10 || p.y < -10 || p.y > WORLD_H + 10) { p.dead = true; return; }
 
-  for (const w of world.obstacles) {
-    if (circleRectCollide(p.x, p.y, p.radius, w)) {
-      if (p.aoe > 0) applyAoeDamage(p, world, world.units.find(x => x.id === p.ownerId));
-      p.dead = true;
-      return;
+  if (!p.piercing) {
+    for (const w of world.obstacles) {
+      if (circleRectCollide(p.x, p.y, p.radius, w)) {
+        if (p.aoe > 0) applyAoeDamage(p, world, world.units.find(x => x.id === p.ownerId));
+        p.dead = true;
+        return;
+      }
+    }
+    // SpeB trails act like a physical obstruction to projectiles -- they
+    // detonate against it instead of flying straight through.
+    for (const hz of world.hazards) {
+      if (hz.type === 'trail' && hz.points.length > 1 && distToPolyline(p.x, p.y, hz.points) < 16 + p.radius) {
+        if (p.aoe > 0) applyAoeDamage(p, world, world.units.find(x => x.id === p.ownerId));
+        p.dead = true;
+        return;
+      }
     }
   }
 
@@ -422,6 +667,10 @@ function updateProjectile(p, world, dt) {
       const owner = world.units.find(x => x.id === p.ownerId);
       if (p.aoe > 0) applyAoeDamage(p, world, owner);
       else damageUnit(u, p.damage, owner, world, p.instaKill);
+      if (p.slow > 0 && u.alive) {
+        u.slowUntil = world.time + p.slowDuration;
+        u.slowAmount = p.slow;
+      }
       p.dead = true;
       return;
     }
@@ -447,6 +696,24 @@ function distToPolyline(x, y, points) {
 function updateHazard(hz, world, dt) {
   hz.age += dt;
   if (hz.age > hz.life) { hz.dead = true; return; }
+
+  if (hz.type === 'mine') {
+    for (const u of world.units) {
+      if (!u.alive || u.team === hz.team) continue;
+      if (Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius) {
+        const owner = world.units.find(x => x.id === hz.ownerId);
+        world.fx.push({ type: 'splash', x: hz.x, y: hz.y, radius: hz.blastRadius, color: '#ff8fe0', seed: hz.id * 0.73, start: world.time, life: 0.4 });
+        for (const v of world.units) {
+          if (!v.alive || v.team === hz.team) continue;
+          if (Math.hypot(v.x - hz.x, v.y - hz.y) < hz.blastRadius) damageUnit(v, hz.damage, owner, world, false);
+        }
+        hz.dead = true;
+        return;
+      }
+    }
+    return;
+  }
+
   hz.tickTimer -= dt;
   const shouldTick = hz.tickTimer <= 0;
   if (shouldTick) hz.tickTimer = hz.tickInterval;

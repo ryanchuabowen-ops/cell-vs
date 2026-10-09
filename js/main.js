@@ -1,11 +1,19 @@
 (function () {
   const screens = {};
   let pendingAction = null;
-  let selectedCharId = null;
-  let selectedPrimaryIdx = 0;
-  let selectedSecondaryIdx = 0;
   let gameInited = false;
   let respawnPickerShownFor = null;
+
+  // Remembers each character's last-chosen ability loadout so re-picking the
+  // same character (including on respawn) starts from where you left off.
+  const lastLoadout = {};
+  function getDefaultLoadout(charId) {
+    const saved = lastLoadout[charId];
+    return { primaryIdx: saved ? saved.primaryIdx : 0, secondaryIdx: saved ? saved.secondaryIdx : 0 };
+  }
+  function saveLoadout(charId, loadout) {
+    lastLoadout[charId] = { primaryIdx: loadout.primaryIdx, secondaryIdx: loadout.secondaryIdx };
+  }
 
   function $(id) { return document.getElementById(id); }
 
@@ -24,16 +32,111 @@
     return h;
   }
 
-  function renderSwatch(canvas, def, charId) {
-    canvas.width = 44; canvas.height = 44;
+  function renderSwatch(canvas, def, charId, size) {
+    size = size || 44;
+    canvas.width = size; canvas.height = size;
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, 44, 44);
+    ctx.clearRect(0, 0, size, size);
     ctx.save();
-    ctx.translate(22, 22);
-    const fakeUnit = { id: charIdSeed(charId), radius: 16, skin: null, devourUntil: 0 };
+    ctx.translate(size / 2, size / 2);
+    const fakeUnit = { id: charIdSeed(charId), radius: size * 0.36, skin: null, devourUntil: 0 };
     drawCharacterShape(ctx, fakeUnit, def);
     ctx.restore();
   }
+
+  function renderWeaponIcon(canvas, shape, color) {
+    canvas.width = 22; canvas.height = 22;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 22, 22);
+    ctx.save();
+    ctx.translate(11, 11);
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    switch (shape) {
+      case 'antibody':
+        ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(0, 0); ctx.moveTo(0, 0); ctx.lineTo(5, 4); ctx.moveTo(0, 0); ctx.lineTo(5, -4); ctx.stroke();
+        break;
+      case 'dart':
+        ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(3, 0); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(2, 2.5); ctx.lineTo(2, -2.5); ctx.closePath(); ctx.fill();
+        break;
+      case 'rocket':
+        ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-4, 3); ctx.lineTo(-2, 0); ctx.lineTo(-4, -3); ctx.closePath(); ctx.fill();
+        break;
+      case 'missile':
+      case 'igg3missile':
+        ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5, 4); ctx.lineTo(-5, -4); ctx.closePath(); ctx.fill();
+        break;
+      case 'net':
+        ctx.beginPath();
+        ctx.moveTo(-6, -6); ctx.lineTo(6, 6); ctx.moveTo(-6, 6); ctx.lineTo(6, -6);
+        ctx.moveTo(0, -7); ctx.lineTo(0, 7); ctx.moveTo(-7, 0); ctx.lineTo(7, 0);
+        ctx.stroke();
+        break;
+      case 'mine':
+        ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+        for (let i = 0; i < 6; i++) {
+          const a = i / 6 * Math.PI * 2;
+          ctx.beginPath(); ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4); ctx.lineTo(Math.cos(a) * 7, Math.sin(a) * 7); ctx.stroke();
+        }
+        break;
+      case 'trail':
+        ctx.beginPath(); ctx.moveTo(-6, 5); ctx.lineTo(0, -3); ctx.lineTo(6, 5); ctx.stroke();
+        break;
+      case 'burst':
+        for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 7, Math.sin(a) * 7); ctx.stroke(); }
+        break;
+      case 'devour':
+        ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'nuke':
+        ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.stroke();
+        break;
+      case 'clone':
+        ctx.beginPath(); ctx.arc(-3, 0, 4.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(3, 0, 4.5, 0, Math.PI * 2); ctx.stroke();
+        break;
+      case 'invis':
+        ctx.globalAlpha = 0.45; ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'claw':
+        ctx.beginPath(); ctx.moveTo(-5, -6); ctx.lineTo(3, 6); ctx.moveTo(-1, -6); ctx.lineTo(7, 6); ctx.stroke();
+        break;
+      case 'spore':
+        ctx.beginPath(); ctx.ellipse(0, 0, 7, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath(); ctx.ellipse(0, 0, 4, 2.5, 0, 0, Math.PI * 2); ctx.stroke();
+        break;
+      case 'rod':
+        ctx.beginPath();
+        ctx.arc(5, 0, 3, -Math.PI / 2, Math.PI / 2);
+        ctx.arc(-5, 0, 3, Math.PI / 2, -Math.PI / 2);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      case 'spike':
+        ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fill();
+        for (let i = 0; i < 7; i++) {
+          const a = i / 7 * Math.PI * 2 + 0.2;
+          const x1 = Math.cos(a) * 3.5, y1 = Math.sin(a) * 3.5;
+          const x2 = Math.cos(a) * 8, y2 = Math.sin(a) * 8;
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(x2, y2, 1.4, 0, Math.PI * 2); ctx.fill();
+        }
+        break;
+      default:
+        ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  const SHAPE_LABELS = {
+    antibody: 'Antibody', dart: 'Toxin Dart', rocket: 'Rocket', missile: 'Guided Missile',
+    igg3missile: 'IgG3 Missile', net: 'NET Trap', mine: 'Toxin Mine', trail: 'SpeB Trail',
+    burst: 'Respiratory Burst', devour: 'Devour', nuke: 'Lethal Toxin', clone: 'Viral Clone',
+    invis: 'Stealth Strike', claw: 'Melee', dot: 'Contact', spike: 'Spike Burst', rod: 'Lethal Toxin',
+    spore: 'Dormant Endospore'
+  };
 
   function makeCharCard(def, opts) {
     opts = opts || {};
@@ -57,26 +160,26 @@
     sideDiv.textContent = def.side;
     card.appendChild(sideDiv);
 
-    if (compact) {
-      const abilities = document.createElement('div');
-      abilities.className = 'char-ability-line';
-      abilities.innerHTML = '<b>RMB</b> ' + def.primary.name + '<br><b>LMB</b> ' + def.secondary.name;
-      card.appendChild(abilities);
-    } else {
+    if (!compact) {
       const blurb = document.createElement('div');
       blurb.className = 'char-blurb';
       blurb.textContent = def.blurb;
       card.appendChild(blurb);
 
-      const p = document.createElement('div');
-      p.className = 'char-ability';
-      p.innerHTML = '<b>RMB ' + def.primary.name + ':</b> ' + def.primary.desc;
-      card.appendChild(p);
-
-      const s = document.createElement('div');
-      s.className = 'char-ability';
-      s.innerHTML = '<b>LMB ' + def.secondary.name + ':</b> ' + def.secondary.desc;
-      card.appendChild(s);
+      // Dual-option characters get picked from at char-select -- show every
+      // option here, not just whichever sits first in the list, so this page
+      // actually reflects the full kit.
+      function renderSlot(label, options) {
+        options.forEach((opt, i) => {
+          const row = document.createElement('div');
+          row.className = 'char-ability';
+          const tag = options.length > 1 ? label + ' · Option ' + String.fromCharCode(65 + i) : label;
+          row.innerHTML = '<b>' + tag + ' ' + opt.name + ':</b> ' + opt.desc;
+          card.appendChild(row);
+        });
+      }
+      renderSlot('RMB', def.primaryOptions || [def.primary]);
+      renderSlot('LMB', def.secondaryOptions || [def.secondary]);
     }
 
     renderSwatch(canvas, def, charId);
@@ -118,131 +221,122 @@
     buildGroupedGrid($('char-grid-display'), [immuneGroup(), pathogenGroup(), phageGroup()], null, false);
   }
 
+  // A self-contained picker: a grid of cards + a detail panel (ability
+  // description, or an option picker for dual-ability characters) + a
+  // confirm button, all in normal document flow so nothing overlaps or
+  // requires absolute positioning.
+  function makeCharPicker(gridSel, detailSel, confirmSel) {
+    let curCharId = null;
+    let curLoadout = { primaryIdx: 0, secondaryIdx: 0 };
+
+    function buildOptionRow(label, options, key) {
+      const row = document.createElement('div');
+      row.className = 'ability-pick-row';
+      const lab = document.createElement('div');
+      lab.className = 'ability-pick-label';
+      lab.textContent = label;
+      row.appendChild(lab);
+      options.forEach((opt, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ability-pick-btn' + (i === curLoadout[key] ? ' active' : '');
+        b.textContent = opt.name;
+        b.title = opt.desc;
+        b.addEventListener('click', () => { curLoadout[key] = i; rerenderDetail(); });
+        row.appendChild(b);
+      });
+      return row;
+    }
+
+    function rerenderDetail() {
+      const detail = document.querySelector(detailSel);
+      const def = CHARACTERS[curCharId];
+      detail.innerHTML = '';
+      detail.classList.remove('hidden');
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'char-detail-name';
+      nameEl.textContent = def.name;
+      detail.appendChild(nameEl);
+
+      if (def.primaryOptions) detail.appendChild(buildOptionRow('RMB Primary', def.primaryOptions, 'primaryIdx'));
+      else {
+        const p = document.createElement('div');
+        p.className = 'char-ability';
+        p.innerHTML = '<b>RMB ' + def.primary.name + ':</b> ' + def.primary.desc;
+        detail.appendChild(p);
+      }
+      if (def.secondaryOptions) detail.appendChild(buildOptionRow('LMB Secondary', def.secondaryOptions, 'secondaryIdx'));
+      else {
+        const s = document.createElement('div');
+        s.className = 'char-ability';
+        s.innerHTML = '<b>LMB ' + def.secondary.name + ':</b> ' + def.secondary.desc;
+        detail.appendChild(s);
+      }
+    }
+
+    function select(card, charId) {
+      document.querySelectorAll(gridSel + ' .char-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      curCharId = charId;
+      curLoadout = getDefaultLoadout(charId);
+      rerenderDetail();
+      document.querySelector(confirmSel).classList.remove('hidden');
+    }
+
+    function reset() {
+      curCharId = null;
+      const detail = document.querySelector(detailSel);
+      detail.classList.add('hidden');
+      detail.innerHTML = '';
+      document.querySelector(confirmSel).classList.add('hidden');
+    }
+
+    function getSelection() { return { charId: curCharId, loadout: curLoadout }; }
+
+    return { select, reset, getSelection };
+  }
+
+  const charSelectPicker = makeCharPicker('#charselect-grid', '#charselect-detail', '#charselect-confirm');
+  const respawnPicker = makeCharPicker('#respawn-grid', '#respawn-detail', '#respawn-confirm');
+
   function openCharSelect(action) {
     pendingAction = action;
-    selectedCharId = null;
-    selectedCardEl = null;
     const grid = $('charselect-grid');
     const title = $('charselect-title');
-    const btn = $('charselect-confirm');
-    const oldPicker = $('ability-picker');
-    if (oldPicker) oldPicker.remove();
-    // Detach the (possibly grid-owned) confirm button back to its static spot
-    // before wiping the grid -- otherwise innerHTML='' below deletes it.
-    grid.insertAdjacentElement('afterend', btn);
-    btn.classList.add('hidden');
-    btn.classList.remove('confirm-floating');
-    btn.style.position = ''; btn.style.top = ''; btn.style.left = ''; btn.style.width = '';
+    charSelectPicker.reset();
 
     if (action === 'pvbot') {
       title.textContent = 'Choose your character';
-      buildGroupedGrid(grid, [immuneGroup(), pathogenGroup()], (card, charId) => selectCard(card, charId), true);
+      buildGroupedGrid(grid, [immuneGroup(), pathogenGroup()], (card, charId) => charSelectPicker.select(card, charId), true);
     } else if (action === 'pve') {
-      title.textContent = 'Choose your character';
-      buildGroupedGrid(grid, [
-        immuneGroup('defend 20 allies vs pathogens'),
-        pathogenGroup('lead 20 allies vs immune cells'),
-        phageGroup()
-      ], (card, charId) => selectCard(card, charId), true);
+      // PvE is a dedicated hero-defense mode built around the two phage
+      // heroes' kits -- immune/pathogen characters stay pvbot-only.
+      title.textContent = 'Choose your hero';
+      buildGroupedGrid(grid, [phageGroup()], (card, charId) => charSelectPicker.select(card, charId), true);
     }
 
     showScreen('screen-charselect');
   }
 
-  function buildOptionRow(label, options, selectedIdx, onPick) {
-    const row = document.createElement('div');
-    row.className = 'ability-pick-row';
-    const lab = document.createElement('div');
-    lab.className = 'ability-pick-label';
-    lab.textContent = label;
-    row.appendChild(lab);
-    options.forEach((opt, i) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'ability-pick-btn' + (i === selectedIdx ? ' active' : '');
-      b.textContent = opt.name;
-      b.title = opt.desc;
-      b.addEventListener('click', () => onPick(i));
-      row.appendChild(b);
-    });
-    return row;
-  }
-
-  function buildAbilityPicker(def) {
-    const wrap = document.createElement('div');
-    wrap.id = 'ability-picker';
-    wrap.className = 'ability-picker';
-    if (def.primaryOptions) {
-      wrap.appendChild(buildOptionRow('RMB Primary', def.primaryOptions, selectedPrimaryIdx, i => {
-        selectedPrimaryIdx = i;
-        positionFloaters();
-      }));
-    }
-    if (def.secondaryOptions) {
-      wrap.appendChild(buildOptionRow('LMB Secondary', def.secondaryOptions, selectedSecondaryIdx, i => {
-        selectedSecondaryIdx = i;
-        positionFloaters();
-      }));
-    }
-    return wrap;
-  }
-
-  let selectedCardEl = null;
-
-  function positionFloaters() {
-    const root = $('charselect-grid');
-    const card = selectedCardEl;
-    if (!card) return;
-    const rootRect = root.getBoundingClientRect();
-    const cardRect = card.getBoundingClientRect();
-    let top = cardRect.bottom - rootRect.top + 8;
-    const left = cardRect.left - rootRect.left;
-    const width = cardRect.width;
-
-    const def = CHARACTERS[selectedCharId];
-    const oldPicker = $('ability-picker');
-    if (oldPicker) oldPicker.remove();
-    let picker = null;
-    if (def.primaryOptions || def.secondaryOptions) {
-      picker = buildAbilityPicker(def);
-      picker.style.position = 'absolute';
-      picker.style.top = top + 'px';
-      picker.style.left = left + 'px';
-      picker.style.width = width + 'px';
-      root.appendChild(picker);
-      top += picker.offsetHeight + 8;
-    }
-
-    const btn = $('charselect-confirm');
-    btn.classList.remove('hidden');
-    btn.classList.add('confirm-floating');
-    btn.style.position = 'absolute';
-    btn.style.top = top + 'px';
-    btn.style.left = left + 'px';
-    btn.style.width = width + 'px';
-    root.appendChild(btn);
-  }
-
-  function selectCard(card, charId) {
-    document.querySelectorAll('#charselect-grid .char-card').forEach(c => c.classList.remove('selected'));
-    card.classList.add('selected');
-    selectedCharId = charId;
-    selectedCardEl = card;
-    selectedPrimaryIdx = 0;
-    selectedSecondaryIdx = 0;
-    positionFloaters();
-  }
-
   function onConfirmCharSelect() {
-    if (!selectedCharId) { alert('Pick a character first.'); return; }
-    const loadout = { primaryIdx: selectedPrimaryIdx, secondaryIdx: selectedSecondaryIdx };
+    const sel = charSelectPicker.getSelection();
+    if (!sel.charId) { alert('Pick a character first.'); return; }
+    saveLoadout(sel.charId, sel.loadout);
     if (pendingAction === 'pvbot') {
       showScreen('screen-game');
-      Game.setupPvBot(selectedCharId, loadout);
+      Game.setupPvBot(sel.charId, sel.loadout);
     } else if (pendingAction === 'pve') {
       showScreen('screen-game');
-      Game.setupPvEOffline(selectedCharId, loadout);
+      Game.setupPvEOffline(sel.charId, sel.loadout);
     }
+  }
+
+  function onConfirmRespawn() {
+    const sel = respawnPicker.getSelection();
+    if (!sel.charId) return;
+    saveLoadout(sel.charId, sel.loadout);
+    Game.respawnAs(sel.charId, sel.loadout);
   }
 
   function formatTime(s) {
@@ -250,6 +344,57 @@
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  let killBannerTimer = null;
+  function showKillBanner(victimName) {
+    const el = $('kill-banner');
+    el.textContent = victimName.toUpperCase() + ' ELIMINATED';
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    if (killBannerTimer) clearTimeout(killBannerTimer);
+    killBannerTimer = setTimeout(() => el.classList.remove('show'), 1100);
+  }
+
+  let lastSeenKillEntry = null;
+  function renderKillFeed(killFeed) {
+    const feed = $('hud-killfeed');
+    feed.innerHTML = '';
+    killFeed.slice(0, 5).forEach(k => {
+      const row = document.createElement('div');
+      if (k.type === 'kill') {
+        row.className = 'kf-row' + (k.isLocalKiller ? ' kf-mine' : (k.isLocalVictim ? ' kf-against' : ''));
+        const kIcon = document.createElement('canvas'); kIcon.className = 'kf-char-icon';
+        const kName = document.createElement('span'); kName.textContent = k.killerName;
+        const wIcon = document.createElement('canvas'); wIcon.className = 'kf-weapon-icon';
+        const vName = document.createElement('span'); vName.textContent = k.victimName;
+        const vIcon = document.createElement('canvas'); vIcon.className = 'kf-char-icon';
+        row.append(kIcon, kName, wIcon, vName, vIcon);
+        feed.appendChild(row);
+        if (k.killerCharId) renderSwatch(kIcon, CHARACTERS[k.killerCharId], k.killerCharId, 36);
+        if (k.victimCharId) renderSwatch(vIcon, CHARACTERS[k.victimCharId], k.victimCharId, 36);
+        renderWeaponIcon(wIcon, k.weaponShape, k.isLocalKiller ? '#ffe066' : (k.isLocalVictim ? '#ff6b6b' : '#cfd8e3'));
+      } else if (k.type === 'assist') {
+        row.className = 'kf-row kf-assist';
+        const badge = document.createElement('span'); badge.className = 'kf-assist-badge'; badge.textContent = 'ASSIST';
+        const vIcon = document.createElement('canvas'); vIcon.className = 'kf-char-icon';
+        const vName = document.createElement('span'); vName.textContent = k.victimName;
+        row.append(badge, vIcon, vName);
+        feed.appendChild(row);
+        if (k.victimCharId) renderSwatch(vIcon, CHARACTERS[k.victimCharId], k.victimCharId, 36);
+      } else {
+        row.className = 'kf-row kf-text';
+        row.textContent = k.text;
+        feed.appendChild(row);
+      }
+    });
+
+    if (killFeed.length && killFeed[0] !== lastSeenKillEntry) {
+      lastSeenKillEntry = killFeed[0];
+      const k = killFeed[0];
+      if (k.type === 'kill' && k.isLocalKiller) showKillBanner(k.victimName);
+    }
   }
 
   function updateHud(world, localUnit, mode, scores, killFeed, scoreboard, localUnitId) {
@@ -275,9 +420,7 @@
     }
 
     updateRespawnPicker(world, localUnit, mode);
-
-    const feed = $('hud-killfeed');
-    feed.innerHTML = killFeed.slice(0, 5).map(k => '<div>' + k.text + '</div>').join('');
+    renderKillFeed(killFeed);
 
     const board = $('hud-scoreboard');
     const local = localUnit;
@@ -315,22 +458,32 @@
     if (respawnPickerShownFor === localUnit.id) return;
     respawnPickerShownFor = localUnit.id;
 
-    let pool;
-    if (mode === 'pvbot') pool = localUnit.team === 'immune' ? IMMUNE_IDS : PATHOGEN_IDS;
-    else pool = world.pveHeroPool || IMMUNE_IDS;
-
     const grid = $('respawn-grid');
+    respawnPicker.reset();
+    let diedAsCard = null;
+    let firstId;
+
+    // Both modes respawn from a flat, team-locked pool: pvbot locks to your
+    // side, PvE locks to the phage heroes the mode is built around.
+    grid.className = 'char-grid small compact';
+    const pool = mode === 'pvbot' ? (localUnit.team === 'immune' ? IMMUNE_IDS : PATHOGEN_IDS) : PHAGE_IDS;
     grid.innerHTML = '';
     for (const id of pool) {
       const card = makeCharCard(CHARACTERS[id], { compact: true, charId: id });
-      card.addEventListener('click', () => Game.respawnAs(id));
+      card.addEventListener('click', () => respawnPicker.select(card, id));
       grid.appendChild(card);
+      if (id === localUnit.charId) diedAsCard = card;
     }
+    firstId = pool[0];
+    // Default back to the character (and loadout) you just died as -- one
+    // click to redeploy, but the full picker is still right there to change it.
+    respawnPicker.select(diedAsCard || grid.querySelector('.char-card'), diedAsCard ? localUnit.charId : firstId);
   }
 
-  function showMatchEnd(mode, result, scores) {
+  function showMatchEnd(mode, result, scores, stats) {
     const title = $('matchend-title');
     const sub = $('matchend-sub');
+    const scorebar = $('matchend-scorebar');
     if (mode === 'pvbot') {
       if (result === 'draw') {
         title.textContent = 'Draw!';
@@ -338,10 +491,64 @@
         title.textContent = (result === 'immune' ? 'Immune System Wins!' : 'Pathogens Win!');
       }
       sub.textContent = 'Final score — Immune ' + scores.immune + ' : ' + scores.pathogen + ' Pathogen';
+      const total = Math.max(1, scores.immune + scores.pathogen);
+      $('matchend-scorebar-immune').style.width = (scores.immune / total * 100) + '%';
+      $('matchend-scorebar-pathogen').style.width = (scores.pathogen / total * 100) + '%';
+      scorebar.classList.remove('hidden');
     } else {
       title.textContent = result === 'victory' ? 'Infection Cleared!' : 'The Host Has Fallen...';
       sub.textContent = result === 'victory' ? 'All 8 waves survived.' : 'Your hero ran out of lives.';
+      scorebar.classList.add('hidden');
     }
+
+    stats = stats || { kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0, weaponKills: {} };
+    $('me-kills').textContent = stats.kills;
+    $('me-deaths').textContent = stats.deaths;
+    $('me-assists').textContent = stats.assists;
+    $('me-kd').textContent = (stats.deaths > 0 ? stats.kills / stats.deaths : stats.kills).toFixed(2);
+    $('me-dmg-dealt').textContent = Math.round(stats.damageDealt);
+    $('me-dmg-taken').textContent = Math.round(stats.damageTaken);
+
+    const weaponsWrap = $('matchend-weapons');
+    weaponsWrap.innerHTML = '';
+    const entries = Object.entries(stats.weaponKills || {}).sort((a, b) => b[1] - a[1]);
+    if (entries.length) {
+      const heading = document.createElement('div');
+      heading.className = 'matchend-weapons-title';
+      heading.textContent = 'Weapon Breakdown';
+      weaponsWrap.appendChild(heading);
+      const maxKills = entries[0][1];
+      for (const [shape, count] of entries) {
+        const row = document.createElement('div');
+        row.className = 'weapon-row';
+        const icon = document.createElement('canvas');
+        icon.className = 'weapon-row-icon';
+        renderWeaponIcon(icon, shape, '#e7edf5');
+        row.appendChild(icon);
+        const label = document.createElement('span');
+        label.className = 'weapon-row-label';
+        label.textContent = SHAPE_LABELS[shape] || 'Unknown';
+        row.appendChild(label);
+        const barWrap = document.createElement('div');
+        barWrap.className = 'weapon-row-barwrap';
+        const bar = document.createElement('div');
+        bar.className = 'weapon-row-bar';
+        bar.style.width = (count / maxKills * 100) + '%';
+        barWrap.appendChild(bar);
+        row.appendChild(barWrap);
+        const countEl = document.createElement('span');
+        countEl.className = 'weapon-row-count';
+        countEl.textContent = count;
+        row.appendChild(countEl);
+        weaponsWrap.appendChild(row);
+      }
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'matchend-weapons-empty';
+      empty.textContent = 'No kills this match.';
+      weaponsWrap.appendChild(empty);
+    }
+
     showScreen('screen-matchend');
   }
 
@@ -356,6 +563,7 @@
       btn.addEventListener('click', () => openCharSelect(btn.getAttribute('data-action')));
     });
     $('charselect-confirm').addEventListener('click', onConfirmCharSelect);
+    $('respawn-confirm').addEventListener('click', onConfirmRespawn);
   }
 
   function init() {

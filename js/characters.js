@@ -2,17 +2,18 @@ const CHARACTERS = {
   macrophage: {
     id: 'macrophage', name: 'Macrophage', side: 'immune',
     color: '#4fd1ff', dark: '#1b6e86', shape: 'blob',
-    radius: 22, speed: 150, maxHp: 220, regen: 0.02,
-    blurb: 'A tanky devourer that swells up and swallows pathogens whole, agar.io-style. Contact-based and mostly automatic: it bites anything it touches, and your only real decision is when to trigger Engulf Surge.',
+    radius: 22, speed: 178, maxHp: 240, regen: 0.02,
+    shield: { max: 60, regenDelay: 3, regenRate: 22 },
+    blurb: 'A tanky devourer that swells up and swallows pathogens whole, agar.io-style. Contact-based and mostly automatic: it bites anything it touches, and your only real decision is when to trigger Engulf Surge. A rechargeable shield and real foot speed help it actually close the distance.',
     primary: {
-      name: 'Engulf Surge', type: 'self_buff_devour', cooldown: 12,
-      duration: 5, sizeMult: 3, speedMult: 1.7,
-      desc: 'Grows to 3x size and accelerates for 5s. Touching an enemy while active devours it instantly. The one deliberate decision you make -- everything else is automatic.'
+      name: 'Engulf Surge', type: 'self_buff_devour', cooldown: 9,
+      duration: 7, sizeMult: 3, speedMult: 1.7,
+      desc: 'Grows to 3x size and accelerates for 7s. Touching an enemy while active devours it instantly. Recharges quickly -- but it is still just the one deliberate decision you make, not your whole kit.'
     },
     secondary: {
-      name: 'Phagocytose', type: 'melee_bite', cooldown: 0.35, auto: true,
+      name: 'Phagocytose', type: 'melee_bite', cooldown: 0.2, auto: true,
       range: 8, damage: 16,
-      desc: 'Automatically bites any enemy it is physically attached to -- no button press needed, it just happens on contact. Can chew through several enemies in sequence.'
+      desc: 'Automatically bites any enemy it is physically attached to -- no button press needed, it just happens on contact, fast enough to matter even outside Engulf Surge.'
     }
   },
   neutrophil: {
@@ -54,14 +55,14 @@ const CHARACTERS = {
     radius: 20, speed: 140, maxHp: 170, regen: 0.02,
     blurb: 'Slow bacterium with an overwhelming lethal toxin and a reliable poke. Tanky and slowly self-repairing, the pathogen answer to the Macrophage.',
     primary: {
-      name: 'Lethal Toxin', type: 'nuke_projectile', cooldown: 15,
+      name: 'Lethal Toxin', type: 'nuke_projectile', cooldown: 15, shape: 'rod',
       speed: 320, life: 2.2, radius: 10, aoe: 75, instaKill: true,
       desc: 'One devastating shot that detonates on anything -- walls, obstacles, or a target. Instantly kills everything caught in its irregular blast radius. Very long recharge.'
     },
     secondary: {
       name: 'Edema Toxin', type: 'projectile', cooldown: 0.4,
-      speed: 400, damage: 15, life: 1.4, radius: 6,
-      desc: 'A standard toxin projectile, just like a normal shot.'
+      speed: 400, damage: 15, life: 1.4, radius: 6, slow: 0.5, slowDuration: 2.2,
+      desc: 'A toxin shot that also swells the target with edema fluid, slowing it by half for 2.2s on hit.'
     }
   },
   coronavirus: {
@@ -75,9 +76,9 @@ const CHARACTERS = {
       desc: 'Spawns a temporary clone of itself that fights all-out alongside you. Up to 2 active at once -- kills they get are credited to you. Lasts 14s.'
     },
     secondary: {
-      name: 'Spike Burst', type: 'aoe_projectile', cooldown: 0.6,
-      speed: 420, damage: 20, life: 1.2, radius: 7, aoe: 50,
-      desc: 'A spike projectile that deals area damage on impact instead of single-target.'
+      name: 'Spike Burst', type: 'aoe_projectile', cooldown: 0.6, shape: 'spike',
+      speed: 420, damage: 24, life: 1.8, radius: 7, aoe: 58,
+      desc: 'A long-range spike projectile that deals area damage on impact instead of single-target.'
     }
   },
   strepA: {
@@ -89,7 +90,7 @@ const CHARACTERS = {
       name: 'SpeB Trail', type: 'trail_hazard', cooldown: 10,
       duration: 3, maxLength: 320, killCap: 5, maxActive: 2,
       hazardLife: 9, tickDamage: 7, tickInterval: 0.4, slow: 0.45,
-      desc: 'Leaves a trail of SpeB toxin as it moves. Enemies that cross it are slowed and take damage.'
+      desc: 'Leaves a trail of SpeB toxin as it moves. Enemies that cross it are slowed and take damage, and it blocks projectiles like a physical obstruction.'
     },
     secondary: {
       name: 'Streptolysin Shot', type: 'projectile', cooldown: 0.35,
@@ -101,15 +102,16 @@ const CHARACTERS = {
     id: 'phage', name: 'Bacteriophage', side: 'phage',
     color: '#7cffcb', dark: '#1f8f6b', shape: 'phage',
     radius: 15, speed: 185, maxHp: 150,
-    blurb: 'PvE hero. A close-range assassin that attaches to a host and injects lethal DNA. Contact-based kit, so it runs high HP.',
+    shield: { max: 70, regenDelay: 3, regenRate: 25 },
+    blurb: 'PvE hero. A close-range assassin that attaches to a host and injects lethal DNA. A rechargeable shield soaks up fire on the way in, then a tank-style charge lets it plow through and lyse several enemies in one burst.',
     primary: {
-      name: 'Lyse', type: 'melee_instakill', cooldown: 4.5,
-      range: 8,
-      desc: 'Injects DNA into an enemy it is physically attached to, destroying it instantly. Must make contact to land.'
+      name: 'Lyse', type: 'charge_lyse', cooldown: 9, shape: 'claw',
+      duration: 0.9, chargeSpeed: 650, range: 14, killCap: 4,
+      desc: 'Charges forward in a straight line, instantly lysing (killing) every enemy it plows through along the way -- up to 4 kills in one committed dash, like a tank charge. Ends the instant it hits the 4th.'
     },
     secondary: {
       name: 'Phage Burst', type: 'shotgun_projectile', cooldown: 0.18,
-      count: 3, spread: 0.3, speed: 520, damage: 8, life: 1.0, radius: 4,
+      count: 3, spread: 0.3, speed: 520, damage: 11, life: 1.0, radius: 4,
       desc: 'A tight burst of phage particles. Unlimited ammo.'
     }
   },
@@ -119,14 +121,14 @@ const CHARACTERS = {
     radius: 14, speed: 190, maxHp: 135,
     blurb: 'PvE hero. A ranged hunter that launches a homing genome injector -- no contact needed, but still built tough for close scrapes.',
     primary: {
-      name: 'Genome Injection', type: 'clone_strike', cooldown: 7.5,
-      speed: 260, life: 3.2, radius: 8, instaKill: true,
-      desc: 'Fires a homing viral genome that locks onto an enemy and kills it instantly on contact. Works at range, but recharges slowly.'
+      name: 'Genome Injection', type: 'clone_strike', cooldown: 10,
+      speed: 260, life: 3.2, radius: 8, instaKill: true, aoe: 70,
+      desc: 'Fires a homing viral genome that locks onto an enemy -- on impact it detonates in a large area, instantly killing everything caught inside, not just the target. Works at range, but recharges slowly.'
     },
     secondary: {
-      name: 'Capsid Burst', type: 'shotgun_projectile', cooldown: 0.2,
-      count: 3, spread: 0.35, speed: 480, damage: 7, life: 1.0, radius: 4,
-      desc: 'A scattershot of viral capsid fragments. Unlimited ammo.'
+      name: 'Capsid Burst', type: 'parallel_projectile', cooldown: 0.2,
+      count: 3, spacing: 16, speed: 480, damage: 7, life: 1.0, radius: 4,
+      desc: 'Three parallel, linear streams of viral capsid fragments fired straight ahead -- precise parallel lanes, not a spread. Unlimited ammo.'
     }
   }
 };
@@ -157,17 +159,18 @@ CHARACTERS.neutrophil.secondaryOptions = [
 CHARACTERS.bcell.primaryOptions = [
   CHARACTERS.bcell.primary,
   {
-    name: 'IgG1 Artillery', type: 'aoe_projectile', cooldown: 4, shape: 'antibody',
-    speed: 340, damage: 24, life: 1.6, radius: 7, aoe: 55,
-    desc: 'A single heavy artillery shot fired in one direction -- slow and unmissable, exploding into a damaging antibody cloud on impact.'
+    name: 'IgG1 Artillery', type: 'artillery_volley', cooldown: 13, shape: 'antibody',
+    volleyCount: 14, volleyInterval: 0.09, spread: 0.1,
+    speed: 360, damage: 16, life: 1.6, radius: 6, aoe: 42,
+    desc: 'BM-21 Grad-style rocket artillery -- unleashes a rapid wave of 14 explosive antibody rockets down-range in about a second, then a long recharge.'
   }
 ];
 CHARACTERS.bcell.secondaryOptions = [
   CHARACTERS.bcell.secondary,
   {
-    name: 'IgG3 Guided Missile', type: 'guided_missile', cooldown: 18, shape: 'missile',
-    speed: 480, life: 5, radius: 9,
-    desc: 'A one-shot-kill guided antibody missile. Takes you out of your body (invulnerable, blind to everything but a threat radar) to steer it by hand into a target.'
+    name: 'IgG3 Guided Missile', type: 'guided_missile', cooldown: 18, shape: 'igg3missile',
+    speed: 760, life: 5, radius: 9, piercing: true, aoe: 55,
+    desc: 'A one-shot-kill guided antibody missile with an area-damage warhead. Takes you out of your body (invulnerable) to steer it by hand into a target -- it punches straight through walls and cover to get there.'
   }
 ];
 
@@ -175,8 +178,26 @@ CHARACTERS.coronavirus.primaryOptions = [
   CHARACTERS.coronavirus.primary,
   {
     name: 'Invisibility', type: 'invisibility', cooldown: 16,
-    duration: 5,
-    desc: 'Turns invisible for 5s -- hidden from enemy targeting and enemy view beyond close range. A pure stealth and escape tool.'
+    duration: 9,
+    desc: 'Turns invisible and invulnerable for 9s -- hidden from enemy targeting and view beyond close range, and immune to all damage while it lasts. A pure stealth and escape tool.'
+  }
+];
+
+CHARACTERS.strepA.primaryOptions = [
+  CHARACTERS.strepA.primary,
+  {
+    name: 'Toxin Mines', type: 'mine_trap', cooldown: 3, shape: 'mine',
+    maxActive: 3, triggerRadius: 26, blastRadius: 65, damage: 42, mineLife: 28,
+    desc: 'Plants an invisible toxin mine where you stand -- hidden from the enemy until they get close enough to trigger it. Up to 3 active at once, each lasting 28s.'
+  }
+];
+
+CHARACTERS.bacterium.primaryOptions = [
+  CHARACTERS.bacterium.primary,
+  {
+    name: 'Dormant Endospore', type: 'endospore_escape', cooldown: 50, shape: 'spore',
+    duration: 2.6, speed: 900,
+    desc: 'Passive -- automatically triggers in the instant before a killing blow would land, instead of dying. You go dormant and invulnerable inside a spore and pilot it anywhere on the map at high speed with a temporary radar, then reform wherever it lands. Long recharge, so it will not save you twice in a row.'
   }
 ];
 

@@ -21,11 +21,50 @@ const FLOATER_COUNT = 7;
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
+// Rects may carry an optional `angle` (radians) to support the Wall Kit's
+// tilted barriers. Axis-aligned rects (angle 0/undefined) take the same math
+// with cos=1/sin=0, so this one path covers both cases.
+function rectCorners(r) {
+  const angle = r.angle || 0;
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  const hw = r.w / 2, hh = r.h / 2;
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  const local = [{ x: -hw, y: -hh }, { x: hw, y: -hh }, { x: hw, y: hh }, { x: -hw, y: hh }];
+  return local.map(p => ({ x: cx + p.x * cos - p.y * sin, y: cy + p.x * sin + p.y * cos }));
+}
+
+function rectEdges(r) {
+  const c = rectCorners(r);
+  return [
+    { x1: c[0].x, y1: c[0].y, x2: c[1].x, y2: c[1].y },
+    { x1: c[1].x, y1: c[1].y, x2: c[2].x, y2: c[2].y },
+    { x1: c[2].x, y1: c[2].y, x2: c[3].x, y2: c[3].y },
+    { x1: c[3].x, y1: c[3].y, x2: c[0].x, y2: c[0].y }
+  ];
+}
+
+// Circle-vs-(possibly rotated)-rect: returns the world-space push vector to
+// separate them, or null if not overlapping.
+function rectPush(px, py, r, rect) {
+  const angle = rect.angle || 0;
+  const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+  const dx = px - cx, dy = py - cy;
+  const cos = Math.cos(-angle), sin = Math.sin(-angle);
+  const lx = dx * cos - dy * sin, ly = dx * sin + dy * cos;
+  const hw = rect.w / 2, hh = rect.h / 2;
+  const nxL = clamp(lx, -hw, hw), nyL = clamp(ly, -hh, hh);
+  let pdx = lx - nxL, pdy = ly - nyL;
+  const dist = Math.hypot(pdx, pdy);
+  if (dist >= r) return null;
+  const ux = dist < 1e-6 ? 1 : pdx / dist, uy = dist < 1e-6 ? 0 : pdy / dist;
+  const push = r - dist;
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  const wx = ux * push, wy = uy * push;
+  return { x: wx * cosA - wy * sinA, y: wx * sinA + wy * cosA };
+}
+
 function circleRectCollide(cx, cy, r, rect) {
-  const nx = clamp(cx, rect.x, rect.x + rect.w);
-  const ny = clamp(cy, rect.y, rect.y + rect.h);
-  const dx = cx - nx, dy = cy - ny;
-  return (dx * dx + dy * dy) < r * r;
+  return !!rectPush(cx, cy, r, rect);
 }
 
 function resolveWallCollision(unit, obstacles) {
@@ -35,18 +74,8 @@ function resolveWallCollision(unit, obstacles) {
   // was leaving the unit oscillating in place ("stuck") in that situation.
   for (let pass = 0; pass < 2; pass++) {
     for (const w of obstacles) {
-      if (circleRectCollide(unit.x, unit.y, unit.radius, w)) {
-        const nx = clamp(unit.x, w.x, w.x + w.w);
-        const ny = clamp(unit.y, w.y, w.y + w.h);
-        let dx = unit.x - nx, dy = unit.y - ny;
-        let dist = Math.hypot(dx, dy);
-        if (dist < 1e-6) { dx = 1; dy = 0; dist = 1; }
-        const push = unit.radius - dist;
-        if (push > 0) {
-          unit.x += (dx / dist) * push;
-          unit.y += (dy / dist) * push;
-        }
-      }
+      const push = rectPush(unit.x, unit.y, unit.radius, w);
+      if (push) { unit.x += push.x; unit.y += push.y; }
     }
     unit.x = clamp(unit.x, unit.radius, WORLD_W - unit.radius);
     unit.y = clamp(unit.y, unit.radius, WORLD_H - unit.radius);
@@ -55,16 +84,6 @@ function resolveWallCollision(unit, obstacles) {
 
 function rectsOverlap(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-function rectEdges(r) {
-  const x0 = r.x, y0 = r.y, x1 = r.x + r.w, y1 = r.y + r.h;
-  return [
-    { x1: x0, y1: y0, x2: x1, y2: y0 },
-    { x1: x1, y1: y0, x2: x1, y2: y1 },
-    { x1: x1, y1: y1, x2: x0, y2: y1 },
-    { x1: x0, y1: y1, x2: x0, y2: y0 }
-  ];
 }
 
 // Robust ray/segment intersection via 2D cross products. Returns {x,y,dist} or null.
@@ -132,7 +151,7 @@ function createFloaters() {
     } while (tries < 30 && nearSpawn(x, y));
     const angle = Math.random() * Math.PI * 2;
     const speed = 30 + Math.random() * 40;
-    floaters.push({ x, y, w, h, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
+    floaters.push({ x, y, w, h, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, seed: Math.random() * 1000 });
   }
   return floaters;
 }

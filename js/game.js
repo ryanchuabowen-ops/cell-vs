@@ -51,6 +51,25 @@ const PICKUP_SPOTS = [
   { id: 'r2', type: 'recharge', x: 1280, y: 650 }
 ];
 
+// PvE is a solo wave-survival grind with no flag sanctuaries to heal at, so it
+// gets a much denser spread of health/recharge kits than PvBot's 6.
+const PVE_PICKUP_SPOTS = [
+  { id: 'h1', type: 'health', x: 350, y: 250 },
+  { id: 'h2', type: 'health', x: 350, y: 1050 },
+  { id: 'h3', type: 'health', x: 750, y: 180 },
+  { id: 'h4', type: 'health', x: 750, y: 1120 },
+  { id: 'h5', type: 'health', x: 1150, y: 250 },
+  { id: 'h6', type: 'health', x: 1150, y: 1050 },
+  { id: 'h7', type: 'health', x: 1550, y: 400 },
+  { id: 'h8', type: 'health', x: 1550, y: 900 },
+  { id: 'r1', type: 'recharge', x: 550, y: 650 },
+  { id: 'r2', type: 'recharge', x: 950, y: 450 },
+  { id: 'r3', type: 'recharge', x: 950, y: 850 },
+  { id: 'r4', type: 'recharge', x: 1350, y: 650 },
+  { id: 'r5', type: 'recharge', x: 1700, y: 300 },
+  { id: 'r6', type: 'recharge', x: 1700, y: 1000 }
+];
+
 const Game = (() => {
   let canvas, ctx;
   let world = null;
@@ -66,6 +85,9 @@ const Game = (() => {
   let killFeed = [];
   let matchOver = false;
   let matchResult = null;
+  // Tallied across the whole match (survives respawns, unlike unit.kills/deaths
+  // which reset on each new life) so the end screen can show real totals.
+  let playerStats = { kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0, weaponKills: {} };
   let listenersBound = false;
 
   function init(canvasEl) {
@@ -172,6 +194,7 @@ const Game = (() => {
     u.radius = u.baseRadius;
     u.speed = u.baseSpeed;
     u.devourUntil = 0;
+    u.damageContributors = {};
     placeAtSpawn(u, w);
   }
 
@@ -328,9 +351,6 @@ const Game = (() => {
         u.invulnerable = false;
       }
     }
-    // Summoned clones are temporary reinforcements, not permanent team slots --
-    // they vanish on death or once their timer runs out, never respawn.
-    world.units = world.units.filter(u => !(u.summonedBy && (!u.alive || world.time >= u.expiresAt)));
     for (const u of world.units) {
       if (!u.alive && world.time >= u.respawnAt && u.team !== 'enemies' && !u.summonedBy) {
         if (u.id === localUnitId && mode === 'pve') {
@@ -383,17 +403,47 @@ const Game = (() => {
         const killerUnit = world.units.find(u => u.id === ev.killer);
         const victimUnit = world.units.find(u => u.id === ev.victim);
         if (mode === 'pvbot' && killerUnit) scores[killerUnit.team] = (scores[killerUnit.team] || 0) + 1;
-        killFeed.unshift({ text: (killerUnit ? killerUnit.name : 'Something') + ' defeated ' + (victimUnit ? victimUnit.name : 'something') });
+        const isLocalKiller = !!(killerUnit && killerUnit.id === localUnitId);
+        const isLocalVictim = !!(victimUnit && victimUnit.id === localUnitId);
+        if (isLocalKiller) {
+          playerStats.kills++;
+          const w = ev.weaponShape || 'dot';
+          playerStats.weaponKills[w] = (playerStats.weaponKills[w] || 0) + 1;
+        }
+        if (isLocalVictim) playerStats.deaths++;
+        killFeed.unshift({
+          type: 'kill',
+          killerName: killerUnit ? killerUnit.name : 'Something',
+          victimName: victimUnit ? victimUnit.name : 'something',
+          killerCharId: killerUnit ? killerUnit.charId : null,
+          victimCharId: victimUnit ? victimUnit.charId : null,
+          weaponShape: ev.weaponShape || 'dot',
+          isLocalKiller: isLocalKiller,
+          isLocalVictim: isLocalVictim
+        });
       } else if (ev.t === 'flagcap') {
-        killFeed.unshift({ text: (ev.team === 'immune' ? 'Immune' : 'Pathogen') + ' team captured ' + ev.flagName + '!' });
+        killFeed.unshift({ type: 'text', text: (ev.team === 'immune' ? 'Immune' : 'Pathogen') + ' team captured ' + ev.flagName + '!' });
       } else if (ev.t === 'flagtick') {
         scores[ev.team] = (scores[ev.team] || 0) + 1;
       } else if (ev.t === 'hit') {
         if (ev.attackerId === localUnitId) {
           world.fx.push({ type: 'hitmarker', x: ev.x, y: ev.y, start: world.time, life: 0.25 });
+          playerStats.damageDealt += ev.amount || 0;
         }
         if (ev.victimId === localUnitId) {
           world.fx.push({ type: 'damageflash', start: world.time, life: 0.3 });
+          playerStats.damageTaken += ev.amount || 0;
+        }
+      } else if (ev.t === 'assist') {
+        if (ev.unitId === localUnitId) {
+          playerStats.assists++;
+          const victimUnit = world.units.find(u => u.id === ev.victim);
+          killFeed.unshift({
+            type: 'assist',
+            victimName: victimUnit ? victimUnit.name : 'something',
+            victimCharId: victimUnit ? victimUnit.charId : null
+          });
+          if (killFeed.length > 6) killFeed.pop();
         }
       }
       if (killFeed.length > 6) killFeed.pop();
@@ -412,7 +462,7 @@ const Game = (() => {
   function checkMatchEnd() {
     if (matchOver && running) {
       running = false;
-      if (window.UI) window.UI.showMatchEnd(mode, matchResult, scores);
+      if (window.UI) window.UI.showMatchEnd(mode, matchResult, scores, playerStats);
     }
   }
 
@@ -421,6 +471,7 @@ const Game = (() => {
     killFeed = [];
     matchOver = false;
     matchResult = null;
+    playerStats = { kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0, weaponKills: {} };
   }
 
   // ---------- Mode setup ----------
@@ -442,6 +493,7 @@ const Game = (() => {
   function setupPvEOffline(charId, loadout) {
     resetState();
     world = createWorld();
+    world.pickups = PVE_PICKUP_SPOTS.map(p => ({ ...p, readyAt: 0 }));
     mode = 'pve';
     const chosenSide = getCharacter(charId).side;
     const reversed = chosenSide === 'pathogen';
@@ -457,13 +509,13 @@ const Game = (() => {
   }
 
   // Lets the local player respawn as a different character on their own team/side.
-  function respawnAs(charId) {
+  function respawnAs(charId, loadout) {
     const old = getLocalUnit();
     if (!old || old.alive) return;
     if (mode === 'pve' && world.heroLives <= 0) return;
     const idx = world.units.indexOf(old);
     if (idx === -1) return;
-    const fresh = createUnit(charId, old.team, 'local');
+    const fresh = createUnit(charId, old.team, 'local', loadout);
     placeAtSpawn(fresh, world);
     world.units[idx] = fresh;
     localUnitId = fresh.id;
@@ -491,6 +543,9 @@ const Game = (() => {
     if (mode === 'pve') updatePveWaves(dt);
     processEvents();
     checkMatchEnd();
+    // Removed only after processEvents so a clone's kill (as killer or victim)
+    // can still be looked up by name for the kill feed/banner this frame.
+    world.units = world.units.filter(u => !(u.summonedBy && (!u.alive || world.time >= u.expiresAt)));
     clearEvents(world);
 
     const u = getLocalUnit();
@@ -519,19 +574,49 @@ const Game = (() => {
     ctx.globalAlpha = 1;
   }
 
+  // Every wall still collides as the plain w.x/y/w/h rect -- these just trace
+  // a per-theme silhouette (inscribed in or clipped to that same rect) so the
+  // visual actually reads as vessel/gut/lung/node tissue instead of a block.
+  function scallopRectPath(c, x, y, w, h, amp, freq) {
+    c.beginPath();
+    c.moveTo(x, y + Math.sin(0) * amp);
+    for (let xx = 0; xx <= w; xx += 10) c.lineTo(x + xx, y + Math.sin(xx * freq) * amp);
+    for (let yy = 0; yy <= h; yy += 10) c.lineTo(x + w + Math.sin(yy * freq + 2) * amp, y + yy);
+    for (let xx = w; xx >= 0; xx -= 10) c.lineTo(x + xx, y + h + Math.sin(xx * freq + 4) * amp);
+    for (let yy = h; yy >= 0; yy -= 10) c.lineTo(x + Math.sin(yy * freq + 6) * amp, y + yy);
+    c.closePath();
+  }
+
+  function wallSilhouettePath(w, theme) {
+    const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+    if (theme.wallDecor === 'vessel') {
+      roundRectPath(ctx, w.x, w.y, w.w, w.h, Math.min(w.w, w.h) / 2);
+    } else if (theme.wallDecor === 'nodes') {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, w.w / 2, w.h / 2, 0, 0, Math.PI * 2);
+    } else if (theme.wallDecor === 'villi') {
+      scallopRectPath(ctx, w.x, w.y, w.w, w.h, 6, 0.5);
+    } else {
+      ctx.beginPath();
+      ctx.rect(w.x, w.y, w.w, w.h);
+    }
+  }
+
   function drawThemedWall(w, theme) {
+    ctx.save();
+    wallSilhouettePath(w, theme);
     ctx.fillStyle = theme.wallFill;
-    ctx.fillRect(w.x, w.y, w.w, w.h);
+    ctx.globalAlpha = theme.wallDecor === 'alveoli' ? 0.5 : 1;
+    ctx.fill();
+    ctx.globalAlpha = theme.wallDecor === 'alveoli' ? 0.4 : 1;
     ctx.strokeStyle = theme.wallStroke;
     ctx.lineWidth = 2;
-    ctx.strokeRect(w.x, w.y, w.w, w.h);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(w.x, w.y, w.w, w.h);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
     ctx.clip();
 
     if (theme.wallDecor === 'vessel') {
+      // Pulsing flow lines down the lumen of the vessel.
       ctx.strokeStyle = theme.floaterStroke;
       ctx.globalAlpha = 0.3;
       ctx.lineWidth = 3;
@@ -550,13 +635,25 @@ const Game = (() => {
         ctx.beginPath(); ctx.ellipse(xx, w.y + w.h - 6, 5, 10, 0, 0, Math.PI * 2); ctx.fill();
       }
     } else if (theme.wallDecor === 'alveoli') {
-      ctx.fillStyle = theme.floaterFill;
-      ctx.globalAlpha = 0.4;
-      const n = Math.floor((w.w * w.h) / 900);
-      for (let i = 0; i < n; i++) {
-        const rx = w.x + ((i * 53) % w.w);
-        const ry = w.y + ((i * 97) % w.h);
-        ctx.beginPath(); ctx.arc(rx, ry, 9, 0, Math.PI * 2); ctx.fill();
+      // Packed, overlapping alveolar sacs -- the cluster itself is the wall's
+      // body, not a texture painted on top of a flat rectangle.
+      const cols = Math.max(2, Math.round(w.w / 48));
+      const rows = Math.max(2, Math.round(w.h / 48));
+      ctx.fillStyle = theme.wallFill;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const jitterX = ((r * 53 + c * 97) % 13) - 6;
+          const jitterY = ((r * 71 + c * 31) % 13) - 6;
+          const sx = w.x + (c + 0.5) * (w.w / cols) + jitterX;
+          const sy = w.y + (r + 0.5) * (w.h / rows) + jitterY;
+          const rad = Math.min(w.w / cols, w.h / rows) * 0.62;
+          ctx.beginPath(); ctx.arc(sx, sy, rad, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = theme.wallStroke;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
       }
     } else if (theme.wallDecor === 'nodes') {
       const pts = [];
@@ -608,16 +705,59 @@ const Game = (() => {
     c.closePath();
   }
 
+  function hexPath(c, cx, cy, rx, ry) {
+    c.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i - Math.PI / 6;
+      const x = cx + Math.cos(a) * rx, y = cy + Math.sin(a) * ry;
+      if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.closePath();
+  }
+
   function drawFloaters() {
     const theme = world.theme;
     for (const f of world.floaters) {
+      const cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+      const rx = f.w / 2, ry = f.h / 2;
       ctx.save();
       ctx.fillStyle = theme.floaterFill;
       ctx.strokeStyle = theme.floaterStroke;
       ctx.lineWidth = 2;
-      roundRectPath(ctx, f.x, f.y, f.w, f.h, 12);
-      ctx.fill();
-      ctx.stroke();
+
+      if (theme.wallDecor === 'vessel') {
+        // A red/white blood cell disc, with a lighter biconcave dimple.
+        ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+        ctx.save();
+        ctx.beginPath(); ctx.ellipse(cx, cy, rx * 0.55, ry * 0.55, 0, 0, Math.PI * 2); ctx.clip();
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = theme.floaterStroke;
+        ctx.fillRect(f.x, f.y, f.w, f.h);
+        ctx.restore();
+      } else if (theme.wallDecor === 'villi') {
+        // Loose, organic gut-flora blob that flexes over time.
+        traceNetBlob(cx, cy, (rx + ry) / 2, f.seed, world.time);
+        ctx.fill(); ctx.stroke();
+      } else if (theme.wallDecor === 'alveoli') {
+        // A small cluster of bubble-like sacs.
+        const offs = [[0, 0], [0.55, -0.4], [-0.5, -0.35], [0.3, 0.5], [-0.4, 0.45]];
+        for (const [ox, oy] of offs) {
+          ctx.beginPath();
+          ctx.arc(cx + ox * rx, cy + oy * ry, Math.min(rx, ry) * 0.55, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      } else if (theme.wallDecor === 'nodes') {
+        // A small hexagonal lymphocyte.
+        hexPath(ctx, cx, cy, rx, ry);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        roundRectPath(ctx, f.x, f.y, f.w, f.h, 12);
+        ctx.fill();
+        ctx.stroke();
+      }
       ctx.restore();
     }
   }
@@ -778,37 +918,56 @@ const Game = (() => {
     for (const w of world.tempWalls) {
       const remain = w.expiresAt - world.time;
       ctx.save();
+      ctx.translate(w.x + w.w / 2, w.y + w.h / 2);
+      ctx.rotate(w.angle || 0);
       ctx.globalAlpha = Math.min(1, Math.max(0.25, remain / 2));
       ctx.fillStyle = 'rgba(180,220,255,0.45)';
       ctx.strokeStyle = 'rgba(225,242,255,0.9)';
       ctx.lineWidth = 2;
-      roundRectPath(ctx, w.x, w.y, w.w, w.h, 5);
+      roundRectPath(ctx, -w.w / 2, -w.h / 2, w.w, w.h, 5);
       ctx.fill();
       ctx.stroke();
       ctx.restore();
     }
   }
 
-  function drawNetMesh(cx, cy, r, color) {
-    ctx.save();
+  function traceNetBlob(cx, cy, r, seed, t) {
+    const segs = 28;
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      const rad = flexRadiusAt(r, a, seed, t);
+      const x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  // A NET trap isn't a rigid disc -- it's a loose mesh caught in fluid, so its
+  // outline continuously stretches/bends into ellipses and irregular bulges
+  // even while nothing is touching it.
+  function drawNetMesh(cx, cy, r, color, seed) {
+    seed = seed || 0;
+    const t = world.time;
+    const m = r * 1.5; // covers the blob's max bulge (sine amplitudes sum to ~1.43x)
+    ctx.save();
+    traceNetBlob(cx, cy, r, seed, t);
     ctx.clip();
     ctx.globalAlpha = 0.16;
     ctx.fillStyle = color;
-    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.fillRect(cx - m, cy - m, m * 2, m * 2);
     ctx.globalAlpha = 0.85;
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
     const spacing = 11;
-    for (let d = -r * 2; d <= r * 2; d += spacing) {
+    for (let d = -m * 2; d <= m * 2; d += spacing) {
       ctx.beginPath();
-      ctx.moveTo(cx - r + d, cy - r);
-      ctx.lineTo(cx - r + d - r * 2, cy + r);
+      ctx.moveTo(cx - m + d, cy - m);
+      ctx.lineTo(cx - m + d - m * 2, cy + m);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(cx - r + d, cy - r);
-      ctx.lineTo(cx - r + d + r * 2, cy + r);
+      ctx.moveTo(cx - m + d, cy - m);
+      ctx.lineTo(cx - m + d + m * 2, cy + m);
       ctx.stroke();
     }
     ctx.restore();
@@ -816,16 +975,16 @@ const Game = (() => {
     ctx.strokeStyle = color;
     ctx.lineWidth = 2.5;
     ctx.globalAlpha = 0.9;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    traceNetBlob(cx, cy, r, seed, t);
     ctx.stroke();
     ctx.restore();
   }
 
   function drawHazards() {
+    const local = getLocalUnit();
     for (const hz of world.hazards) {
       if (hz.type === 'net') {
-        drawNetMesh(hz.x, hz.y, hz.radius, '#9fffb0');
+        drawNetMesh(hz.x, hz.y, hz.radius, '#9fffb0', hz.id * 0.91);
       } else if (hz.type === 'trail' && hz.points.length > 1) {
         ctx.save();
         ctx.strokeStyle = 'rgba(255,143,224,0.75)';
@@ -836,6 +995,26 @@ const Game = (() => {
         ctx.moveTo(hz.points[0].x, hz.points[0].y);
         for (let i = 1; i < hz.points.length; i++) ctx.lineTo(hz.points[i].x, hz.points[i].y);
         ctx.stroke();
+        ctx.restore();
+      } else if (hz.type === 'mine') {
+        // Invisible to the enemy -- only the owner's own team can see where
+        // their mines are planted.
+        if (local && hz.team !== local.team) continue;
+        const pulse = 0.5 + Math.sin(world.time * 3 + hz.id) * 0.3;
+        ctx.save();
+        ctx.translate(hz.x, hz.y);
+        ctx.globalAlpha = 0.55 + pulse * 0.25;
+        ctx.fillStyle = '#ff8fe0';
+        ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * 8, Math.sin(a) * 8);
+          ctx.lineTo(Math.cos(a) * 13, Math.sin(a) * 13);
+          ctx.stroke();
+        }
         ctx.restore();
       }
     }
@@ -888,6 +1067,97 @@ const Game = (() => {
         ctx.beginPath();
         ctx.moveTo(r * 1.8, 0); ctx.lineTo(-r, r * 0.8); ctx.lineTo(-r, -r * 0.8);
         ctx.closePath(); ctx.fill();
+        break;
+      }
+      case 'igg3missile': {
+        const flicker = 0.7 + Math.sin(world.time * 40 + p.id) * 0.3;
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        const grad = ctx.createLinearGradient(-r * 3.4, 0, -r * 0.5, 0);
+        grad.addColorStop(0, 'rgba(255,110,10,0)');
+        grad.addColorStop(0.55, 'rgba(255,150,30,0.85)');
+        grad.addColorStop(1, 'rgba(255,235,150,0.95)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.5, -r * 0.55);
+        ctx.lineTo(-r * (2.3 + flicker), 0);
+        ctx.lineTo(-r * 0.5, r * 0.55);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        ctx.fillStyle = 'rgba(255,230,160,0.9)';
+        ctx.beginPath();
+        ctx.arc(-r * 0.5, 0, r * 0.3 * flicker, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 2.6;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.5, 0); ctx.lineTo(r * 0.3, 0);
+        ctx.moveTo(r * 0.3, 0); ctx.lineTo(r * 1.3, r * 1.0);
+        ctx.moveTo(r * 0.3, 0); ctx.lineTo(r * 1.3, -r * 1.0);
+        ctx.stroke();
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(-r * 0.5, 0, r * 0.4, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'rod': {
+        const len = r * 3.2, half = len / 2, hw = r * 0.7;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = p.instaKill ? 16 : 6;
+        ctx.beginPath();
+        ctx.arc(half, 0, hw, -Math.PI / 2, Math.PI / 2);
+        ctx.arc(-half, 0, hw, Math.PI / 2, -Math.PI / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(-half * 0.55, 0); ctx.lineTo(half * 0.55, 0); ctx.stroke();
+        break;
+      }
+      case 'spore': {
+        const len = r * 1.6, hw = r * 1.1;
+        ctx.save();
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = 0.9;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, len, hw, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, len * 0.6, hw * 0.55, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case 'spike': {
+        const core = r * 0.55;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(0, 0, core, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        const spikeCount = 8;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 1.6;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < spikeCount; i++) {
+          const a = (Math.PI * 2 * i) / spikeCount + 0.3;
+          const x1 = Math.cos(a) * core, y1 = Math.sin(a) * core;
+          const x2 = Math.cos(a) * r * 1.5, y2 = Math.sin(a) * r * 1.5;
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(x2, y2, r * 0.22, 0, Math.PI * 2); ctx.fill();
+        }
         break;
       }
       default: {
@@ -1007,16 +1277,41 @@ const Game = (() => {
     if (missile) {
       ctx.save();
       ctx.translate(canvas.width / 2 - camera.x, canvas.height / 2 - camera.y);
+
+      // The pilot's own camera still respects walls (even though the missile
+      // itself can physically punch through them) -- a tight visibility bubble
+      // so you can actually see what's nearby, not just a radar blip.
+      const poly = computeVisibilityPolygon(missile.x, missile.y, 430, world.obstacles);
+      ctx.save();
+      ctx.beginPath();
+      poly.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.clip();
+      drawMapDetail();
+      drawFloaters();
+      drawTempWalls();
+      drawUnits();
+      ctx.restore();
+
+      ctx.save();
       ctx.translate(missile.x, missile.y);
       ctx.rotate(missile.angle);
-      ctx.fillStyle = missile.color;
       ctx.shadowColor = missile.color;
-      ctx.shadowBlur = 22;
-      ctx.beginPath();
-      ctx.moveTo(16, 0); ctx.lineTo(-9, 8); ctx.lineTo(-4, 0); ctx.lineTo(-9, -8);
-      ctx.closePath();
-      ctx.fill();
+      ctx.shadowBlur = 20;
+      drawProjectileShape(missile);
       ctx.restore();
+
+      ctx.restore();
+
+      const grad = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, canvas.height * 0.16,
+        canvas.width / 2, canvas.height / 2, canvas.height * 0.62
+      );
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.85)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       drawRadarArrows(missile);
     }
     ctx.restore();
