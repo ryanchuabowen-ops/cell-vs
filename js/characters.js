@@ -94,8 +94,8 @@ const CHARACTERS = {
     },
     secondary: {
       name: 'Streptolysin Shot', type: 'projectile', cooldown: 0.35,
-      speed: 440, damage: 14, life: 1.3, radius: 6,
-      desc: 'A standard projectile toxin shot.'
+      speed: 440, damage: 14, life: 1.3, radius: 6, hitTolerance: 16,
+      desc: 'A toxin shot with a forgiving hitbox -- it doesn\'t need to land a precise direct hit, just pass close by an enemy.'
     }
   },
   phage: {

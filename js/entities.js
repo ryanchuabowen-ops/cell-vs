@@ -70,7 +70,8 @@ function createProjectile(owner, x, y, angle, opts) {
     color: opts.color || '#ffffff',
     shape: opts.shape || 'dot',
     slow: opts.slow || 0,
-    slowDuration: opts.slowDuration || 0
+    slowDuration: opts.slowDuration || 0,
+    hitTolerance: opts.hitTolerance || 0
   };
 }
 
@@ -337,7 +338,7 @@ function useAbility(unit, slot, world) {
     case 'projectile': {
       const a = unit.angle;
       world.projectiles.push(createProjectile(unit, unit.x + Math.cos(a) * (unit.radius + 4), unit.y + Math.sin(a) * (unit.radius + 4), a,
-        { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, color: def.color, shape: ab.shape, slow: ab.slow, slowDuration: ab.slowDuration }));
+        { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, color: def.color, shape: ab.shape, slow: ab.slow, slowDuration: ab.slowDuration, hitTolerance: ab.hitTolerance }));
       break;
     }
     case 'radial_projectile': {
@@ -715,7 +716,7 @@ function updateProjectile(p, world, dt) {
   for (const u of world.units) {
     if (!u.alive || u.team === p.team) continue;
     const d = Math.hypot(u.x - p.x, u.y - p.y);
-    if (d < u.radius + p.radius) {
+    if (d < u.radius + p.radius + p.hitTolerance) {
       const owner = world.units.find(x => x.id === p.ownerId);
       if (p.aoe > 0) applyAoeDamage(p, world, owner);
       else damageUnit(u, p.damage, owner, world, p.instaKill);
