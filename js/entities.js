@@ -19,6 +19,7 @@ function createUnit(charId, team, controllerType, loadout) {
     shield: def.shield ? def.shield.max : 0,
     maxShield: def.shield ? def.shield.max : 0,
     lastShieldHitTime: -999,
+    _hazardHpBonusActive: false,
     alive: true,
     controllerType: controllerType || 'bot', // 'local' | 'remote' | 'bot'
     input: { mx: 0, my: 0, aim: 0, primary: false, secondary: false, wall: false },
@@ -215,14 +216,20 @@ function findNearestEnemyInRange(unit, world, range) {
 // "Attach" abilities (Phagocytose, Lyse) require actual body contact: the gap
 // between the two cells' edges must be within `buffer`, not just a flat radius.
 function findAttachedEnemy(unit, world, buffer) {
-  let best = null, bestD = Infinity;
+  let best = null, bestD = Infinity, human = null, humanD = Infinity;
   for (const u of world.units) {
     if (!u.alive || u.team === unit.team || u.id === unit.id) continue;
     const d = Math.hypot(u.x - unit.x, u.y - unit.y);
     const touchDist = unit.radius + u.radius + (buffer || 0);
-    if (d < touchDist && d < bestD) { bestD = d; best = u; }
+    if (d >= touchDist) continue;
+    if (d < bestD) { bestD = d; best = u; }
+    if (u.controllerType === 'local' && d < humanD) { humanD = d; human = u; }
   }
-  return best;
+  // If the human player is in range at all, a contact-bite always goes to
+  // them over a closer bot -- otherwise a bite can land on whichever AI
+  // teammate happens to be standing slightly nearer, which reads as "nothing
+  // is happening" when a player wades into a crowd expecting an instant kill.
+  return human || best;
 }
 function findNearestEnemyBySide(p, world) {
   let best = null, bestD = Infinity;
@@ -247,6 +254,7 @@ function defaultShapeForType(type) {
     case 'trail_hazard': return 'trail';
     case 'mine_trap': return 'mine';
     case 'pulse_aoe': return 'burst';
+    case 'poison_cloud': return 'cloud';
     case 'self_buff_devour': return 'devour';
     case 'nuke_projectile': case 'aoe_projectile': return 'nuke';
     case 'clone_strike': case 'summon_clone': return 'clone';
@@ -300,9 +308,22 @@ function useAbility(unit, slot, world) {
     }
     case 'mine_trap': {
       const existing = world.hazards.filter(h => h.ownerId === unit.id && h.type === 'mine');
-      if (existing.length >= ab.maxActive) break;
-      world.hazards.push(createHazard(unit, 'mine', unit.x, unit.y,
-        { radius: ab.triggerRadius, blastRadius: ab.blastRadius, damage: ab.damage, hazardLife: ab.mineLife }));
+      if (existing.length >= ab.maxActive) {
+        // At the total cap -- scrap the oldest to make room instead of
+        // refusing the new one, so the field is always the 5 freshest mines.
+        let oldest = existing[0];
+        for (const h of existing) if (h.age > oldest.age) oldest = h;
+        oldest.dead = true;
+      }
+      const hz = createHazard(unit, 'mine', unit.x, unit.y,
+        { radius: ab.triggerRadius, blastRadius: ab.blastRadius, damage: ab.damage, hazardLife: ab.mineLife });
+      // Mines drift slowly instead of sitting fixed, so they can wander into
+      // new choke points over their lifetime.
+      const driftAngle = Math.random() * Math.PI * 2;
+      const driftSpeed = 16 + Math.random() * 14;
+      hz.vx = Math.cos(driftAngle) * driftSpeed;
+      hz.vy = Math.sin(driftAngle) * driftSpeed;
+      world.hazards.push(hz);
       break;
     }
     case 'trail_hazard': {
@@ -386,15 +407,19 @@ function useAbility(unit, slot, world) {
     }
     case 'summon_clone': {
       const existing = world.units.filter(u => u.summonedBy === unit.id && u.alive);
-      if (existing.length >= ab.maxClones) break;
-      const clone = createUnit(unit.charId, unit.team, 'bot');
-      clone.summonedBy = unit.id;
-      clone.expiresAt = world.time + ab.duration;
-      clone.x = unit.x + (Math.random() - 0.5) * 40;
-      clone.y = unit.y + (Math.random() - 0.5) * 40;
-      clone.angle = unit.angle;
-      world.units.push(clone);
-      world.fx.push({ type: 'summon_arrow', targetId: clone.id, start: world.time, life: 3 });
+      const slotsOpen = ab.maxClones - existing.length;
+      // One activation releases a full set of clones at once (up to whatever
+      // room is left under the cap), not one clone per press.
+      for (let i = 0; i < slotsOpen; i++) {
+        const clone = createUnit(unit.charId, unit.team, 'bot');
+        clone.summonedBy = unit.id;
+        clone.expiresAt = world.time + ab.duration;
+        clone.x = unit.x + (Math.random() - 0.5) * 40;
+        clone.y = unit.y + (Math.random() - 0.5) * 40;
+        clone.angle = unit.angle;
+        world.units.push(clone);
+        world.fx.push({ type: 'summon_arrow', targetId: clone.id, start: world.time, life: 3 });
+      }
       break;
     }
     case 'invisibility': {
@@ -412,6 +437,10 @@ function useAbility(unit, slot, world) {
         const d = Math.hypot(u.x - unit.x, u.y - unit.y);
         if (d < ab.radius + unit.radius) damageUnit(u, ab.damage, unit, world, false);
       }
+      break;
+    }
+    case 'poison_cloud': {
+      world.hazards.push(createHazard(unit, 'cloud', unit.x, unit.y, ab));
       break;
     }
     case 'homing_shot': {
@@ -478,6 +507,23 @@ function updateUnit(unit, world, dt) {
   }
   if (def.shield && unit.shield < unit.maxShield && world.time - unit.lastShieldHitTime > def.shield.regenDelay) {
     unit.shield = Math.min(unit.maxShield, unit.shield + def.shield.regenRate * dt);
+  }
+
+  // Strep A: running a live SpeB trail or having a mine out in the field is
+  // the whole point of the kit, so it grants a temporary HP cushion while
+  // either is active -- an incentive to drop them somewhere dangerous
+  // instead of camping safely at the edge of a fight.
+  if (def.hazardHpBonus) {
+    const hasActiveHazard = world.hazards.some(h => h.ownerId === unit.id && (h.type === 'trail' || h.type === 'mine'));
+    if (hasActiveHazard && !unit._hazardHpBonusActive) {
+      unit.maxHp += def.hazardHpBonus;
+      unit.hp += def.hazardHpBonus;
+      unit._hazardHpBonusActive = true;
+    } else if (!hasActiveHazard && unit._hazardHpBonusActive) {
+      unit.maxHp -= def.hazardHpBonus;
+      unit.hp = Math.min(unit.hp, unit.maxHp);
+      unit._hazardHpBonusActive = false;
+    }
   }
 
   if (unit.devourUntil && unit.devourUntil <= world.time) {
@@ -704,6 +750,13 @@ function updateHazard(hz, world, dt) {
   if (hz.age > hz.life) { hz.dead = true; return; }
 
   if (hz.type === 'mine') {
+    if (hz.vx || hz.vy) {
+      hz.x += hz.vx * dt; hz.y += hz.vy * dt;
+      if (hz.x < 20) { hz.x = 20; hz.vx = Math.abs(hz.vx); }
+      if (hz.x > WORLD_W - 20) { hz.x = WORLD_W - 20; hz.vx = -Math.abs(hz.vx); }
+      if (hz.y < 20) { hz.y = 20; hz.vy = Math.abs(hz.vy); }
+      if (hz.y > WORLD_H - 20) { hz.y = WORLD_H - 20; hz.vy = -Math.abs(hz.vy); }
+    }
     for (const u of world.units) {
       if (!u.alive || u.team === hz.team) continue;
       if (Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius) {
@@ -731,9 +784,13 @@ function updateHazard(hz, world, dt) {
       inside = Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius;
     } else if (hz.type === 'trail' && hz.points.length > 1) {
       inside = distToPolyline(u.x, u.y, hz.points) < 16 + u.radius;
+    } else if (hz.type === 'cloud') {
+      inside = Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius;
     }
     if (inside) {
-      u.slowFactor = Math.max(u.slowFactor || 0, hz.slow);
+      // The poison cloud damages but doesn't slow -- it relies on blocking
+      // vision and being a no-go zone, not on rooting anyone in place.
+      if (hz.type !== 'cloud') u.slowFactor = Math.max(u.slowFactor || 0, hz.slow);
       if (shouldTick) {
         const owner = world.units.find(x => x.id === hz.ownerId);
         const wasAlive = u.alive;

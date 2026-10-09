@@ -26,7 +26,11 @@ html, body {
   overflow: hidden;
 }
 
-#app { position: relative; width: 100vw; height: 100vh; }
+/* 100% (matching html/body) instead of 100vw/100vh -- in an embedded webview
+   the viewport units can resolve against the outer frame rather than this
+   page's own box, which was quietly pushing every centered panel off toward
+   one corner instead of the middle of the visible area. */
+#app { position: relative; width: 100%; height: 100%; }
 
 .screen {
   position: absolute;
@@ -97,7 +101,7 @@ button:active { transform: translateY(0); }
   border-radius: 16px;
   padding: 30px;
   max-width: 920px;
-  width: 92vw;
+  width: 92%;
   max-height: 88vh;
   overflow-y: auto;
 }
@@ -273,7 +277,7 @@ button:active { transform: translateY(0); }
   z-index: 5;
 }
 #respawn-picker.hidden { display: none; }
-.respawn-box { max-width: 700px; width: 90vw; max-height: 85vh; overflow-y: auto; text-align: center; }
+.respawn-box { max-width: 700px; width: 90%; max-height: 85vh; overflow-y: auto; text-align: center; }
 .respawn-box h3 { font-size: 20px; margin-bottom: 14px; }
 
 #screen-matchend .panel { text-align: center; }

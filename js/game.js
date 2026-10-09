@@ -193,6 +193,11 @@ const Game = (() => {
 
   function respawnUnit(u, w) {
     u.alive = true;
+    const def = getCharacter(u.charId);
+    if (u._hazardHpBonusActive) {
+      u.maxHp -= def.hazardHpBonus;
+      u._hazardHpBonusActive = false;
+    }
     u.hp = u.maxHp;
     u.radius = u.baseRadius;
     u.speed = u.baseSpeed;
@@ -571,9 +576,61 @@ const Game = (() => {
     ctx.strokeStyle = '#1a2230';
     ctx.lineWidth = 4;
     ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
+    // This dim layer renders unclipped by the vision polygon, so -- because a
+    // wall's own footprint is geometrically never actually "inside" that
+    // polygon as seen from outside it -- this is what a wall visually reads
+    // as almost all the time. It needs the real per-theme silhouette, not a
+    // flat rect, or every wall looks like a plain block no matter the theme.
     ctx.fillStyle = theme.wallFill;
     ctx.globalAlpha = 0.5;
-    for (const w of WALLS) ctx.fillRect(w.x, w.y, w.w, w.h);
+    for (const w of WALLS) {
+      if (theme.wallDecor === 'alveoli') {
+        // Alveoli walls are a packed cluster of circles, not a single closed
+        // silhouette -- wallSilhouettePath has no shape for that, so draw the
+        // same cluster used in the detailed layer instead of falling back to
+        // a plain rect here.
+        const cols = Math.max(2, Math.round(w.w / 48));
+        const rows = Math.max(2, Math.round(w.h / 48));
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const jitterX = ((r * 53 + c * 97) % 13) - 6;
+            const jitterY = ((r * 71 + c * 31) % 13) - 6;
+            const sx = w.x + (c + 0.5) * (w.w / cols) + jitterX;
+            const sy = w.y + (r + 0.5) * (w.h / rows) + jitterY;
+            const rad = Math.min(w.w / cols, w.h / rows) * 0.62;
+            ctx.beginPath(); ctx.arc(sx, sy, rad, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+      } else {
+        wallSilhouettePath(w, theme); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // Floaters are obstacles too, so they have the exact same "own footprint
+    // never actually inside the vision polygon" problem as walls -- without
+    // this dim pass they'd fall back to nothing (or whatever drew under them)
+    // instead of their themed shape.
+    ctx.fillStyle = theme.floaterFill;
+    ctx.globalAlpha = 0.5;
+    for (const f of world.floaters) {
+      const cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+      const rx = f.w / 2, ry = f.h / 2;
+      if (theme.wallDecor === 'vessel') {
+        ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+      } else if (theme.wallDecor === 'villi') {
+        traceNetBlob(cx, cy, (rx + ry) / 2, f.seed, world.time); ctx.fill();
+      } else if (theme.wallDecor === 'alveoli') {
+        const offs = [[0, 0], [0.55, -0.4], [-0.5, -0.35], [0.3, 0.5], [-0.4, 0.45]];
+        for (const [ox, oy] of offs) {
+          ctx.beginPath(); ctx.arc(cx + ox * rx, cy + oy * ry, Math.min(rx, ry) * 0.55, 0, Math.PI * 2); ctx.fill();
+        }
+      } else if (theme.wallDecor === 'nodes') {
+        hexPath(ctx, cx, cy, rx, ry); ctx.fill();
+      } else {
+        roundRectPath(ctx, f.x, f.y, f.w, f.h, 12); ctx.fill();
+      }
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -1028,6 +1085,31 @@ const Game = (() => {
         ctx.beginPath();
         ctx.moveTo(hz.points[0].x, hz.points[0].y);
         for (let i = 1; i < hz.points.length; i++) ctx.lineTo(hz.points[i].x, hz.points[i].y);
+        ctx.stroke();
+        ctx.restore();
+      } else if (hz.type === 'cloud') {
+        // A thick, billowing toxic cloud -- layered organic blobs so it
+        // reads as genuinely opaque gas, not a thin outline.
+        ctx.save();
+        const seed = hz.id * 0.77;
+        const fadeIn = Math.min(1, hz.age / 0.5);
+        const fadeOut = Math.min(1, (hz.life - hz.age) / 0.6);
+        const fade = Math.min(fadeIn, fadeOut);
+        const layers = [
+          { r: hz.radius, dx: 0, dy: 0, a: 0.5 },
+          { r: hz.radius * 0.75, dx: Math.sin(world.time * 0.6 + seed) * hz.radius * 0.25, dy: Math.cos(world.time * 0.5 + seed) * hz.radius * 0.2, a: 0.45 },
+          { r: hz.radius * 0.65, dx: Math.cos(world.time * 0.4 + seed * 1.3) * hz.radius * 0.25, dy: Math.sin(world.time * 0.7 + seed * 1.3) * hz.radius * 0.2, a: 0.4 }
+        ];
+        ctx.fillStyle = '#b6ff6e';
+        for (const L of layers) {
+          ctx.globalAlpha = L.a * fade;
+          traceNetBlob(hz.x + L.dx, hz.y + L.dy, L.r, seed + L.r, world.time * 0.6);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 0.9 * fade;
+        ctx.strokeStyle = 'rgba(180,255,100,0.5)';
+        ctx.lineWidth = 2;
+        traceNetBlob(hz.x, hz.y, hz.radius, seed, world.time * 0.6);
         ctx.stroke();
         ctx.restore();
       } else if (hz.type === 'mine') {

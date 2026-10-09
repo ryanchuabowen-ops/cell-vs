@@ -139,6 +139,12 @@
         ctx.closePath();
         ctx.fill();
         break;
+      case 'cloud':
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath(); ctx.arc(-3, 1, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3, 0, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, -3, 3.5, 0, Math.PI * 2); ctx.fill();
+        break;
       default:
         ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
     }
@@ -150,7 +156,7 @@
     igg3missile: 'IgG3 Missile', net: 'NET Trap', mine: 'Toxin Mine', trail: 'SpeB Trail',
     burst: 'Respiratory Burst', devour: 'Devour', nuke: 'Lethal Toxin', clone: 'Viral Clone',
     invis: 'Stealth Strike', claw: 'Melee', dot: 'Contact', spike: 'Spike Burst', rod: 'Lethal Toxin',
-    spore: 'Dormant Endospore', genome: 'Genome Injection', capsid: 'Capsid Burst'
+    spore: 'Dormant Endospore', genome: 'Genome Injection', capsid: 'Capsid Burst', cloud: 'Respiratory Burst'
   };
 
   function makeCharCard(def, opts) {

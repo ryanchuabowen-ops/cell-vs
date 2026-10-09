@@ -39,9 +39,9 @@ const CHARACTERS = {
     radius: 17, speed: 165, maxHp: 95,
     blurb: 'Ranged antibody artillery that blankets an area or shotguns a lane.',
     primary: {
-      name: 'Antibody Barrage', type: 'radial_projectile', cooldown: 4.5, shape: 'antibody',
-      count: 12, speed: 420, damage: 15, life: 1.3, radius: 5,
-      desc: 'Aggressive antibody shooting -- fires antibodies in a full 360 around the B-Cell at once.'
+      name: 'Antibody Barrage', type: 'radial_projectile', cooldown: 11, shape: 'antibody',
+      count: 28, speed: 420, damage: 15, life: 1.3, radius: 5,
+      desc: 'A starburst of 28 antibodies all at once in a full 360 around the B-Cell -- a devastating one-shot nova for a kamikaze dive into a crowd, but a long recharge after.'
     },
     secondary: {
       name: 'IgG Shotgun', type: 'shotgun_projectile', cooldown: 0.3, shape: 'antibody',
@@ -73,7 +73,7 @@ const CHARACTERS = {
     primary: {
       name: 'Viral Clone', type: 'summon_clone', cooldown: 9,
       duration: 14, maxClones: 2,
-      desc: 'Spawns a temporary clone of itself that fights all-out alongside you. Up to 2 active at once -- kills they get are credited to you. Lasts 14s.'
+      desc: 'Releases 2 temporary clones of itself at once, fighting all-out alongside you -- kills they get are credited to you. Lasts 14s.'
     },
     secondary: {
       name: 'Spike Burst', type: 'aoe_projectile', cooldown: 0.6, shape: 'spike',
@@ -84,13 +84,13 @@ const CHARACTERS = {
   strepA: {
     id: 'strepA', name: 'Strep A', side: 'pathogen',
     color: '#ff8fe0', dark: '#8a2f72', shape: 'chain',
-    radius: 17, speed: 180, maxHp: 100,
-    blurb: 'Leaves a damaging SpeB trail behind it, like a tire road-spike strip.',
+    radius: 17, speed: 180, maxHp: 100, hazardHpBonus: 45,
+    blurb: 'Leaves a damaging SpeB trail behind it, like a tire road-spike strip. Gains a temporary HP cushion whenever a trail or mine is live, to encourage dropping them in the thick of a fight instead of somewhere safe.',
     primary: {
       name: 'SpeB Trail', type: 'trail_hazard', cooldown: 10,
-      duration: 3, maxLength: 320, killCap: 5, maxActive: 2,
+      duration: 6, maxLength: 500, killCap: 5, maxActive: 2,
       hazardLife: 9, tickDamage: 7, tickInterval: 0.4, slow: 0.45,
-      desc: 'Leaves a trail of SpeB toxin as it moves. Enemies that cross it are slowed and take damage, and it blocks projectiles like a physical obstruction.'
+      desc: 'Leaves a long trail of SpeB toxin as it moves. Enemies that cross it are slowed and take damage, and it blocks projectiles like a physical obstruction. While it is live, you gain a temporary HP bonus.'
     },
     secondary: {
       name: 'Streptolysin Shot', type: 'projectile', cooldown: 0.35,
@@ -143,35 +143,35 @@ const PHAGE_IDS = ['phage', 'virophage'];
 CHARACTERS.neutrophil.primaryOptions = [
   CHARACTERS.neutrophil.primary,
   {
-    name: 'Respiratory Burst', type: 'pulse_aoe', cooldown: 6.5,
-    radius: 75, damage: 32,
-    desc: 'An instant burst of reactive oxygen species around the Neutrophil, damaging every enemy nearby. No travel time.'
+    name: 'Respiratory Burst', type: 'poison_cloud', cooldown: 8, shape: 'cloud',
+    radius: 95, hazardLife: 6, tickDamage: 13, tickInterval: 0.5,
+    desc: 'Exhales a lingering toxic cloud. Any enemy that wanders into it takes steady damage for as long as they stay inside.'
   }
 ];
 CHARACTERS.neutrophil.secondaryOptions = [
   CHARACTERS.neutrophil.secondary,
   {
-    name: 'Degranulation', type: 'projectile', cooldown: 0.18, shape: 'rocket',
-    speed: 500, damage: 14, life: 1.0, radius: 5,
-    desc: 'An unguided toxin rocket -- more damage than Toxin Spray, slightly slower to recharge.'
+    name: 'Degranulation', type: 'parallel_projectile', cooldown: 0.18, shape: 'rocket',
+    count: 3, spacing: 18, speed: 500, damage: 20, life: 1.0, radius: 5,
+    desc: 'Three unguided toxin rockets fired in parallel lines -- higher damage than Toxin Spray, and three times the lanes.'
   }
 ];
 
 CHARACTERS.bcell.primaryOptions = [
   CHARACTERS.bcell.primary,
   {
-    name: 'IgG1 Artillery', type: 'artillery_volley', cooldown: 13, shape: 'antibody',
-    volleyCount: 14, volleyInterval: 0.09, spread: 0.1,
+    name: 'IgG1 Artillery', type: 'artillery_volley', cooldown: 9, shape: 'antibody',
+    volleyCount: 20, volleyInterval: 0.12, spread: 0.1,
     speed: 360, damage: 16, life: 1.6, radius: 6, aoe: 42,
-    desc: 'BM-21 Grad-style rocket artillery -- unleashes a rapid wave of 14 explosive antibody rockets down-range in about a second, then a long recharge.'
+    desc: 'BM-21 Grad-style rocket artillery -- unleashes an extended wave of 20 explosive antibody rockets down-range over a couple of seconds. Recharges faster than Antibody Barrage, making it the more sustainable offensive option.'
   }
 ];
 CHARACTERS.bcell.secondaryOptions = [
   CHARACTERS.bcell.secondary,
   {
-    name: 'IgG3 Guided Missile', type: 'guided_missile', cooldown: 18, shape: 'igg3missile',
+    name: 'IgG3 Guided Missile', type: 'guided_missile', cooldown: 13, shape: 'igg3missile',
     speed: 760, life: 5, radius: 9, piercing: true, aoe: 55,
-    desc: 'A one-shot-kill guided antibody missile with an area-damage warhead. Takes you out of your body (invulnerable) to steer it by hand into a target -- it punches straight through walls and cover to get there.'
+    desc: 'A one-shot-kill guided antibody missile with an area-damage warhead. Takes you out of your body (invulnerable) to steer it by hand into a target -- it punches straight through walls and cover to get there. Recharges faster than before.'
   }
 ];
 
@@ -188,8 +188,8 @@ CHARACTERS.strepA.primaryOptions = [
   CHARACTERS.strepA.primary,
   {
     name: 'Toxin Mines', type: 'mine_trap', cooldown: 3, shape: 'mine',
-    maxActive: 3, triggerRadius: 26, blastRadius: 65, damage: 42, mineLife: 28,
-    desc: 'Plants an invisible toxin mine where you stand -- hidden from the enemy until they get close enough to trigger it. Up to 3 active at once, each lasting 28s.'
+    maxActive: 5, triggerRadius: 26, blastRadius: 65, damage: 42, mineLife: 28,
+    desc: 'Plants an invisible toxin mine that slowly drifts from where you stood -- hidden from the enemy until they get close enough to trigger it. Lay up to 3 in a quick burst; up to 5 can exist on the field at once, each on its own timer, and dropping a 6th scraps the oldest. While any are out, you gain a temporary HP bonus.'
   }
 ];
 
