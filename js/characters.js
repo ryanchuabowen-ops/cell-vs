@@ -72,8 +72,8 @@ const CHARACTERS = {
     blurb: 'Agile virus that sends a homing clone to one-shot a target, or bursts spikes.',
     primary: {
       name: 'Viral Clone', type: 'summon_clone', cooldown: 9,
-      duration: 14, maxClones: 2,
-      desc: 'Releases 2 temporary clones of itself at once, fighting all-out alongside you -- kills they get are credited to you. Lasts 14s.'
+      duration: 14, maxClones: 1,
+      desc: 'Spawns a temporary clone of itself, fighting all-out alongside you -- kills it gets are credited to you. Lasts 14s.'
     },
     secondary: {
       name: 'Spike Burst', type: 'aoe_projectile', cooldown: 0.6, shape: 'spike',
