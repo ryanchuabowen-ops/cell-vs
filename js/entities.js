@@ -71,7 +71,11 @@ function createProjectile(owner, x, y, angle, opts) {
     shape: opts.shape || 'dot',
     slow: opts.slow || 0,
     slowDuration: opts.slowDuration || 0,
-    hitTolerance: opts.hitTolerance || 0
+    hitTolerance: opts.hitTolerance || 0,
+    splatRadius: opts.splatRadius || 0,
+    splatLife: opts.splatLife || 1,
+    splatTickDamage: opts.splatTickDamage || 0,
+    splatTickInterval: opts.splatTickInterval || 0.3
   };
 }
 
@@ -308,23 +312,30 @@ function useAbility(unit, slot, world) {
       break;
     }
     case 'mine_trap': {
-      const existing = world.hazards.filter(h => h.ownerId === unit.id && h.type === 'mine');
-      if (existing.length >= ab.maxActive) {
-        // At the total cap -- scrap the oldest to make room instead of
-        // refusing the new one, so the field is always the 5 freshest mines.
-        let oldest = existing[0];
-        for (const h of existing) if (h.age > oldest.age) oldest = h;
-        oldest.dead = true;
+      const burst = ab.burstCount || 1;
+      for (let i = 0; i < burst; i++) {
+        const existing = world.hazards.filter(h => h.ownerId === unit.id && h.type === 'mine');
+        if (existing.length >= ab.maxActive) {
+          // At the total cap -- scrap the oldest to make room instead of
+          // refusing the new one, so the field is always the freshest mines.
+          let oldest = existing[0];
+          for (const h of existing) if (h.age > oldest.age) oldest = h;
+          oldest.dead = true;
+        }
+        // A multi-mine burst scatters outward in a ring instead of stacking
+        // on one spot, so one activation covers a wide area at once.
+        const a = burst > 1 ? (i / burst) * Math.PI * 2 + (Math.random() - 0.5) * 0.3 : Math.random() * Math.PI * 2;
+        const dist = burst > 1 ? 35 + Math.random() * 20 : 0;
+        const hz = createHazard(unit, 'mine', unit.x + Math.cos(a) * dist, unit.y + Math.sin(a) * dist,
+          { radius: ab.triggerRadius, blastRadius: ab.blastRadius, damage: ab.damage, hazardLife: ab.mineLife });
+        // Mines drift slowly instead of sitting fixed, so they can wander into
+        // new choke points over their lifetime.
+        const driftAngle = Math.random() * Math.PI * 2;
+        const driftSpeed = 16 + Math.random() * 14;
+        hz.vx = Math.cos(driftAngle) * driftSpeed;
+        hz.vy = Math.sin(driftAngle) * driftSpeed;
+        world.hazards.push(hz);
       }
-      const hz = createHazard(unit, 'mine', unit.x, unit.y,
-        { radius: ab.triggerRadius, blastRadius: ab.blastRadius, damage: ab.damage, hazardLife: ab.mineLife });
-      // Mines drift slowly instead of sitting fixed, so they can wander into
-      // new choke points over their lifetime.
-      const driftAngle = Math.random() * Math.PI * 2;
-      const driftSpeed = 16 + Math.random() * 14;
-      hz.vx = Math.cos(driftAngle) * driftSpeed;
-      hz.vy = Math.sin(driftAngle) * driftSpeed;
-      world.hazards.push(hz);
       break;
     }
     case 'trail_hazard': {
@@ -338,7 +349,8 @@ function useAbility(unit, slot, world) {
     case 'projectile': {
       const a = unit.angle;
       world.projectiles.push(createProjectile(unit, unit.x + Math.cos(a) * (unit.radius + 4), unit.y + Math.sin(a) * (unit.radius + 4), a,
-        { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, color: def.color, shape: ab.shape, slow: ab.slow, slowDuration: ab.slowDuration, hitTolerance: ab.hitTolerance }));
+        { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, color: def.color, shape: ab.shape, slow: ab.slow, slowDuration: ab.slowDuration, hitTolerance: ab.hitTolerance,
+          splatRadius: ab.splatRadius, splatLife: ab.splatLife, splatTickDamage: ab.splatTickDamage, splatTickInterval: ab.splatTickInterval }));
       break;
     }
     case 'radial_projectile': {
@@ -723,6 +735,12 @@ function updateProjectile(p, world, dt) {
       if (p.slow > 0 && u.alive) {
         u.slowUntil = world.time + p.slowDuration;
         u.slowAmount = p.slow;
+      }
+      if (p.splatRadius > 0 && owner) {
+        // Edema Toxin bursts into a brief poison splash on impact, on top of
+        // the direct hit -- a short-lived 'cloud' hazard centered on where it landed.
+        world.hazards.push(createHazard(owner, 'cloud', p.x, p.y,
+          { radius: p.splatRadius, hazardLife: p.splatLife, tickDamage: p.splatTickDamage, tickInterval: p.splatTickInterval }));
       }
       p.dead = true;
       return;

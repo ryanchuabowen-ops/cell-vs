@@ -61,8 +61,9 @@ const CHARACTERS = {
     },
     secondary: {
       name: 'Edema Toxin', type: 'projectile', cooldown: 0.4,
-      speed: 400, damage: 15, life: 1.4, radius: 6, slow: 0.5, slowDuration: 2.2,
-      desc: 'A toxin shot that also swells the target with edema fluid, slowing it by half for 2.2s on hit.'
+      speed: 400, damage: 15, life: 1.4, radius: 6, slow: 0.5, slowDuration: 2.2, hitTolerance: 16,
+      splatRadius: 50, splatLife: 1, splatTickDamage: 10, splatTickInterval: 0.3,
+      desc: 'A toxin shot with a forgiving hitbox that also swells the target with edema fluid, slowing it by half for 2.2s. On impact it also splats poison across a small area for 1s, damaging anything caught in the splash.'
     }
   },
   coronavirus: {
@@ -188,8 +189,8 @@ CHARACTERS.strepA.primaryOptions = [
   CHARACTERS.strepA.primary,
   {
     name: 'Toxin Mines', type: 'mine_trap', cooldown: 3, shape: 'mine',
-    maxActive: 5, triggerRadius: 26, blastRadius: 65, damage: 42, mineLife: 28,
-    desc: 'Plants an invisible toxin mine that slowly drifts from where you stood -- hidden from the enemy until they get close enough to trigger it. Lay up to 3 in a quick burst; up to 5 can exist on the field at once, each on its own timer, and dropping a 6th scraps the oldest. While any are out, you gain a temporary HP bonus.'
+    maxActive: 5, burstCount: 5, triggerRadius: 26, blastRadius: 65, damage: 42, mineLife: 28,
+    desc: 'Scatters all 5 invisible toxin mines at once in a ring around you, each slowly drifting off in its own direction -- hidden from the enemy until they get close enough to trigger one, each on its own timer. While any are out, you gain a temporary HP bonus.'
   }
 ];
 
