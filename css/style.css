@@ -81,6 +81,14 @@ button:active { transform: translateY(0); }
   font-weight: 700;
   border: none;
 }
+/* The generic button:hover rule outranks .confirm-btn's own background by
+   specificity, which was replacing its bright gradient with a near-black
+   fill (dark text on dark background) on hover. Pin the hover state here,
+   a notch brighter so it still reads clearly as hovered. */
+.confirm-btn:hover {
+  background: linear-gradient(90deg, #6fd8ff, #9bffd9);
+  color: #04202c;
+}
 .back-btn { display: block; margin: 0 auto; opacity: 0.75; }
 
 .panel {
@@ -234,6 +242,9 @@ button:active { transform: translateY(0); }
 #hud-bottom { display: flex; align-items: flex-end; justify-content: space-between; }
 
 #hud-hp-wrap { width: 220px; }
+#hud-shield-bar { background: rgba(0,0,0,0.5); border: 1px solid rgba(124,255,203,0.5); border-radius: 8px; height: 8px; overflow: hidden; margin-bottom: 3px; }
+#hud-shield-bar.hidden { display: none; }
+#hud-shield-fill { height: 100%; background: linear-gradient(90deg, #4fd1ff, var(--accent)); width: 100%; transition: width 0.1s linear; }
 #hud-hp-bar { background: rgba(0,0,0,0.5); border: 1px solid var(--panel-border); border-radius: 8px; height: 14px; overflow: hidden; }
 #hud-hp-fill { height: 100%; background: linear-gradient(90deg, var(--immune), var(--accent)); width: 100%; transition: width 0.1s linear; }
 #hud-hp-text { font-size: 11px; color: var(--muted); margin-top: 4px; }

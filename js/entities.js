@@ -252,6 +252,7 @@ function defaultShapeForType(type) {
     case 'clone_strike': case 'summon_clone': return 'clone';
     case 'invisibility': return 'invis';
     case 'guided_missile': return 'igg3missile';
+    case 'parallel_projectile': return 'capsid';
     case 'endospore_escape': return 'spore';
     default: return 'dot';
   }
@@ -277,7 +278,11 @@ function useAbility(unit, slot, world) {
     }
     case 'melee_bite': {
       const target = findAttachedEnemy(unit, world, ab.range);
-      if (target) damageUnit(target, ab.damage, unit, world, false);
+      if (target) {
+        world.fx.push({ type: 'reach_arm', x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, color: def.color, start: world.time, life: 0.3 });
+        // Once the arm actually reaches something, it's engulfed whole -- an instant kill, not a damage tick.
+        damageUnit(target, 0, unit, world, true);
+      }
       break;
     }
     case 'melee_instakill': {

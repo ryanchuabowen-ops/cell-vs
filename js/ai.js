@@ -49,14 +49,27 @@ function pathClear(unit, world, dx, dy, dist) {
 
 function steer(unit, world, dirX, dirY) {
   const lookahead = unit.radius + 55;
-  if (pathClear(unit, world, dirX, dirY, lookahead)) return { mx: dirX, my: dirY };
+  if (pathClear(unit, world, dirX, dirY, lookahead)) {
+    unit._avoidUntil = 0;
+    return { mx: dirX, my: dirY };
+  }
+  // Once a deflection is picked, commit to it for a short window instead of
+  // re-scanning every single frame. Re-deriving fresh each frame was letting
+  // a bot flip-flop between "go shallow-right" and "go steep-around" right at
+  // a corner, making near-zero net progress and reading as permanently stuck.
+  if (unit._avoidUntil > world.time && unit._avoidDir) return unit._avoidDir;
   const baseAngle = Math.atan2(dirY, dirX);
   const sign = unit._avoidSign || (unit._avoidSign = Math.random() < 0.5 ? 1 : -1);
   for (const delta of [0.35, 0.7, 1.05, 1.4, 1.9, 2.4]) {
     for (const s of [sign, -sign]) {
       const a = baseAngle + delta * s;
       const tx = Math.cos(a), ty = Math.sin(a);
-      if (pathClear(unit, world, tx, ty, lookahead)) return { mx: tx, my: ty };
+      if (pathClear(unit, world, tx, ty, lookahead)) {
+        const dir = { mx: tx, my: ty };
+        unit._avoidDir = dir;
+        unit._avoidUntil = world.time + 0.6;
+        return dir;
+      }
     }
   }
   return { mx: dirX, my: dirY };

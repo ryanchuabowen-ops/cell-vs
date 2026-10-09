@@ -124,6 +124,21 @@
           ctx.beginPath(); ctx.arc(x2, y2, 1.4, 0, Math.PI * 2); ctx.fill();
         }
         break;
+      case 'genome':
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        for (let i = -7; i <= 7; i += 1) { const y = Math.sin(i * 0.9) * 3; if (i === -7) ctx.moveTo(i, y); else ctx.lineTo(i, y); }
+        ctx.stroke();
+        ctx.beginPath();
+        for (let i = -7; i <= 7; i += 1) { const y = Math.sin(i * 0.9 + Math.PI) * 3; if (i === -7) ctx.moveTo(i, y); else ctx.lineTo(i, y); }
+        ctx.stroke();
+        break;
+      case 'capsid':
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const x = Math.cos(a) * 6, y = Math.sin(a) * 6; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+        ctx.closePath();
+        ctx.fill();
+        break;
       default:
         ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
     }
@@ -135,7 +150,7 @@
     igg3missile: 'IgG3 Missile', net: 'NET Trap', mine: 'Toxin Mine', trail: 'SpeB Trail',
     burst: 'Respiratory Burst', devour: 'Devour', nuke: 'Lethal Toxin', clone: 'Viral Clone',
     invis: 'Stealth Strike', claw: 'Melee', dot: 'Contact', spike: 'Spike Burst', rod: 'Lethal Toxin',
-    spore: 'Dormant Endospore'
+    spore: 'Dormant Endospore', genome: 'Genome Injection', capsid: 'Capsid Burst'
   };
 
   function makeCharCard(def, opts) {
@@ -435,6 +450,14 @@
     const primaryAb = localUnit.abilities.primary, secondaryAb = localUnit.abilities.secondary;
     $('hud-hp-fill').style.width = Math.max(0, (localUnit.hp / localUnit.maxHp) * 100) + '%';
     $('hud-hp-text').textContent = Math.ceil(Math.max(0, localUnit.hp)) + ' / ' + localUnit.maxHp + (localUnit.alive ? '' : ' — respawning...');
+
+    const shieldBar = $('hud-shield-bar');
+    if (localUnit.maxShield > 0) {
+      shieldBar.classList.remove('hidden');
+      $('hud-shield-fill').style.width = Math.max(0, (localUnit.shield / localUnit.maxShield) * 100) + '%';
+    } else {
+      shieldBar.classList.add('hidden');
+    }
 
     const pOverlay = $('ability-primary').querySelector('.cd-overlay');
     const sOverlay = $('ability-secondary').querySelector('.cd-overlay');

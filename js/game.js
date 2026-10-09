@@ -41,6 +41,9 @@ const PVE_MAX_ENEMIES = 26;
 
 const PICKUP_RADIUS = 34;
 const PICKUP_RESPAWN_DELAY = 25;
+// PvE kits cycle back much faster than pvbot's -- keeps the grind interesting
+// and gives a solo hero more to actually rely on between waves.
+const PVE_PICKUP_RESPAWN_DELAY = 12;
 const HEALTH_PICKUP_FRACTION = 0.45;
 const PICKUP_SPOTS = [
   { id: 'h1', type: 'health', x: 500, y: 300 },
@@ -321,7 +324,7 @@ const Game = (() => {
             u.cd.primary = 0;
             u.cd.secondary = 0;
           }
-          p.readyAt = world.time + PICKUP_RESPAWN_DELAY;
+          p.readyAt = world.time + (p.respawnDelay || PICKUP_RESPAWN_DELAY);
           break;
         }
       }
@@ -493,7 +496,7 @@ const Game = (() => {
   function setupPvEOffline(charId, loadout) {
     resetState();
     world = createWorld();
-    world.pickups = PVE_PICKUP_SPOTS.map(p => ({ ...p, readyAt: 0 }));
+    world.pickups = PVE_PICKUP_SPOTS.map(p => ({ ...p, readyAt: 0, respawnDelay: PVE_PICKUP_RESPAWN_DELAY }));
     mode = 'pve';
     const chosenSide = getCharacter(charId).side;
     const reversed = chosenSide === 'pathogen';
@@ -864,6 +867,37 @@ const Game = (() => {
           ctx.fill();
           ctx.restore();
         }
+      } else if (f.type === 'reach_arm') {
+        // A pseudopod stretching from the Macrophage out to whatever it's
+        // about to devour -- grows out, wobbles, and quickly fades.
+        const dx = f.x2 - f.x1, dy = f.y2 - f.y1;
+        const dist = Math.hypot(dx, dy);
+        const ang = Math.atan2(dy, dx);
+        const grow = Math.min(1, t * 3.2);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - t * 1.3);
+        ctx.strokeStyle = f.color;
+        ctx.fillStyle = f.color;
+        ctx.lineWidth = 7;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(f.x1, f.y1);
+        const segs = 10;
+        let tipX = f.x1, tipY = f.y1;
+        for (let i = 1; i <= segs; i++) {
+          const p = (i / segs) * grow;
+          const px = f.x1 + Math.cos(ang) * dist * p;
+          const py = f.y1 + Math.sin(ang) * dist * p;
+          const wob = Math.sin(p * Math.PI * 3 + world.time * 10) * 4 * (1 - p * 0.5);
+          const px2 = px - Math.sin(ang) * wob, py2 = py + Math.cos(ang) * wob;
+          ctx.lineTo(px2, py2);
+          tipX = px2; tipY = py2;
+        }
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
     }
   }
@@ -1121,6 +1155,56 @@ const Game = (() => {
         ctx.beginPath(); ctx.moveTo(-half * 0.55, 0); ctx.lineTo(half * 0.55, 0); ctx.stroke();
         break;
       }
+      case 'genome': {
+        // A small double-helix strand with a glowing injector tip.
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        const amp = r * 0.5, span = r * 1.4;
+        ctx.beginPath();
+        for (let i = -span; i <= span; i += 2) {
+          const y = Math.sin(i * 0.9) * amp;
+          if (i === -span) ctx.moveTo(i, y); else ctx.lineTo(i, y);
+        }
+        ctx.stroke();
+        ctx.beginPath();
+        for (let i = -span; i <= span; i += 2) {
+          const y = Math.sin(i * 0.9 + Math.PI) * amp;
+          if (i === -span) ctx.moveTo(i, y); else ctx.lineTo(i, y);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 0.55;
+        for (let i = -span; i <= span; i += span) {
+          const y1 = Math.sin(i * 0.9) * amp, y2 = Math.sin(i * 0.9 + Math.PI) * amp;
+          ctx.beginPath(); ctx.moveTo(i, y1); ctx.lineTo(i, y2); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(span, 0, r * 0.32, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        break;
+      }
+      case 'capsid': {
+        // A small faceted viral particle -- distinct from Coronavirus's larger spike ball.
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          const x = Math.cos(a) * r, y = Math.sin(a) * r;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        break;
+      }
       case 'spore': {
         const len = r * 1.6, hw = r * 1.1;
         ctx.save();
@@ -1216,11 +1300,26 @@ const Game = (() => {
       }
       ctx.restore();
 
+      if (u.maxShield > 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(u.x - 20, u.y - u.radius - 23, 40, 4);
+        ctx.fillStyle = '#7cffcb';
+        ctx.fillRect(u.x - 20, u.y - u.radius - 23, 40 * (u.shield / u.maxShield), 4);
+      }
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
       ctx.fillRect(u.x - 20, u.y - u.radius - 16, 40, 6);
       const teamColor = (u.team === 'immune' || u.team === 'allies') ? '#4fd1ff' : '#ff6b6b';
       ctx.fillStyle = teamColor;
       ctx.fillRect(u.x - 20, u.y - u.radius - 16, 40 * (u.hp / u.maxHp), 6);
+      if (u.shield > 0) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(124,255,203,0.65)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(u.x, u.y, u.radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       const isLocal = u.id === localUnitId;
       const isFriendly = local && u.team === local.team;

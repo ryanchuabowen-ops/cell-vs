@@ -3,7 +3,7 @@ const CHARACTERS = {
     id: 'macrophage', name: 'Macrophage', side: 'immune',
     color: '#4fd1ff', dark: '#1b6e86', shape: 'blob',
     radius: 22, speed: 178, maxHp: 240, regen: 0.02,
-    shield: { max: 60, regenDelay: 3, regenRate: 22 },
+    shield: { max: 85, regenDelay: 3, regenRate: 30 },
     blurb: 'A tanky devourer that swells up and swallows pathogens whole, agar.io-style. Contact-based and mostly automatic: it bites anything it touches, and your only real decision is when to trigger Engulf Surge. A rechargeable shield and real foot speed help it actually close the distance.',
     primary: {
       name: 'Engulf Surge', type: 'self_buff_devour', cooldown: 9,
@@ -12,8 +12,8 @@ const CHARACTERS = {
     },
     secondary: {
       name: 'Phagocytose', type: 'melee_bite', cooldown: 0.2, auto: true,
-      range: 8, damage: 16,
-      desc: 'Automatically bites any enemy it is physically attached to -- no button press needed, it just happens on contact, fast enough to matter even outside Engulf Surge.'
+      range: 55,
+      desc: 'Automatically triggers on any enemy that wanders within reach -- no button press needed. The Macrophage stretches out a pseudopod arm and, the instant it connects, engulfs the target whole -- an instant kill, fast enough to matter even outside Engulf Surge.'
     }
   },
   neutrophil: {
@@ -119,14 +119,15 @@ const CHARACTERS = {
     id: 'virophage', name: 'Virophage', side: 'phage',
     color: '#9ad1ff', dark: '#2c6a9e', shape: 'virophage',
     radius: 14, speed: 190, maxHp: 135,
-    blurb: 'PvE hero. A ranged hunter that launches a homing genome injector -- no contact needed, but still built tough for close scrapes.',
+    shield: { max: 55, regenDelay: 3, regenRate: 20 },
+    blurb: 'PvE hero. A ranged hunter that launches a homing genome injector -- no contact needed, but still built tough for close scrapes. A rechargeable shield covers it when its Capsid Burst forces it into close range.',
     primary: {
-      name: 'Genome Injection', type: 'clone_strike', cooldown: 10,
+      name: 'Genome Injection', type: 'clone_strike', cooldown: 10, shape: 'genome',
       speed: 260, life: 3.2, radius: 8, instaKill: true, aoe: 70,
       desc: 'Fires a homing viral genome that locks onto an enemy -- on impact it detonates in a large area, instantly killing everything caught inside, not just the target. Works at range, but recharges slowly.'
     },
     secondary: {
-      name: 'Capsid Burst', type: 'parallel_projectile', cooldown: 0.2,
+      name: 'Capsid Burst', type: 'parallel_projectile', cooldown: 0.2, shape: 'capsid',
       count: 3, spacing: 16, speed: 480, damage: 7, life: 1.0, radius: 4,
       desc: 'Three parallel, linear streams of viral capsid fragments fired straight ahead -- precise parallel lanes, not a spread. Unlimited ammo.'
     }
