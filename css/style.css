@@ -278,6 +278,18 @@ button:active { transform: translateY(0); }
 }
 #respawn-picker.hidden { display: none; }
 .respawn-box { max-width: 700px; width: 90%; max-height: 85vh; overflow-y: auto; text-align: center; }
+.spawn-point-row { margin: 10px 0; }
+.spawn-point-row.hidden { display: none; }
+.spawn-point-btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.spawn-point-btn {
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--panel-border);
+  background: #0b0f17;
+  color: var(--text);
+}
+.spawn-point-btn.active { border-color: var(--accent); background: #142132; color: var(--accent); }
 .respawn-box h3 { font-size: 20px; margin-bottom: 14px; }
 
 #screen-matchend .panel { text-align: center; }

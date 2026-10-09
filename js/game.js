@@ -90,7 +90,7 @@ const Game = (() => {
   let matchResult = null;
   // Tallied across the whole match (survives respawns, unlike unit.kills/deaths
   // which reset on each new life) so the end screen can show real totals.
-  let playerStats = { kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0, weaponKills: {} };
+  let playerStats = { kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0, weaponKills: {}, flagCaptures: 0 };
   let listenersBound = false;
 
   function init(canvasEl) {
@@ -154,6 +154,7 @@ const Game = (() => {
       tempWalls: [],
       obstacles: WALLS.concat(floaters),
       flags: [],
+      localSpawnChoice: null,
       fx: [],
       pickups: PICKUP_SPOTS.map(p => ({ ...p, readyAt: 0 })),
       matchTime: MATCH_DURATION,
@@ -182,7 +183,12 @@ const Game = (() => {
     let s = getSpawnForTeam(w, unit.team);
     if (mode === 'pvbot' && w.flags && w.flags.length) {
       const owned = w.flags.filter(f => f.capturable && f.owner === unit.team);
-      if (owned.length && Math.random() < 0.6) {
+      if (unit.id === localUnitId && w.localSpawnChoice) {
+        // BF4-style deploy choice -- spawn exactly where the player picked,
+        // as long as their team still holds that flag.
+        const picked = owned.find(f => f.id === w.localSpawnChoice);
+        if (picked) s = { x: picked.x, y: picked.y };
+      } else if (owned.length && Math.random() < 0.6) {
         const pick = owned[Math.floor(Math.random() * owned.length)];
         s = { x: pick.x, y: pick.y };
       }
@@ -431,6 +437,11 @@ const Game = (() => {
         });
       } else if (ev.t === 'flagcap') {
         killFeed.unshift({ type: 'text', text: (ev.team === 'immune' ? 'Immune' : 'Pathogen') + ' team captured ' + ev.flagName + '!' });
+        // Captures/recaptures aren't attributed to one player (anyone
+        // standing in the zone contributes), so this counts it as a team
+        // accomplishment on the capturing side's own end-screen stats.
+        const localU = world.units.find(u => u.id === localUnitId);
+        if (localU && ev.team === localU.team) playerStats.flagCaptures = (playerStats.flagCaptures || 0) + 1;
       } else if (ev.t === 'flagtick') {
         scores[ev.team] = (scores[ev.team] || 0) + 1;
       } else if (ev.t === 'hit') {
@@ -450,6 +461,29 @@ const Game = (() => {
             type: 'assist',
             victimName: victimUnit ? victimUnit.name : 'something',
             victimCharId: victimUnit ? victimUnit.charId : null
+          });
+          if (killFeed.length > 6) killFeed.pop();
+        }
+      } else if (ev.t === 'bonus_kill') {
+        // A 75%+ damage contributor who wasn't the finishing blow still
+        // counts as a real kill (matching the scoreboard, which already
+        // reads kills straight off the unit) -- this just gets it into the
+        // end-screen stats and kill feed too, same as a normal kill.
+        if (ev.unitId === localUnitId) {
+          playerStats.kills++;
+          const w = ev.weaponShape || 'dot';
+          playerStats.weaponKills[w] = (playerStats.weaponKills[w] || 0) + 1;
+          const victimUnit = world.units.find(u => u.id === ev.victim);
+          const localU = world.units.find(u => u.id === localUnitId);
+          killFeed.unshift({
+            type: 'kill',
+            killerName: localU ? localU.name : 'You',
+            victimName: victimUnit ? victimUnit.name : 'something',
+            killerCharId: localU ? localU.charId : null,
+            victimCharId: victimUnit ? victimUnit.charId : null,
+            weaponShape: w,
+            isLocalKiller: true,
+            isLocalVictim: false
           });
           if (killFeed.length > 6) killFeed.pop();
         }
@@ -479,7 +513,7 @@ const Game = (() => {
     killFeed = [];
     matchOver = false;
     matchResult = null;
-    playerStats = { kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0, weaponKills: {} };
+    playerStats = { kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0, weaponKills: {}, flagCaptures: 0 };
   }
 
   // ---------- Mode setup ----------
@@ -1549,9 +1583,28 @@ const Game = (() => {
     if (window.UI) window.UI.updateHud(world, getLocalUnit(), mode, scores, killFeed, getScoreboard(6), localUnitId);
   }
 
+  function setSpawnChoice(flagId) {
+    if (world) world.localSpawnChoice = flagId;
+  }
+
+  // BF4-style deploy list: home base plus whichever capturable flags your
+  // own team currently holds.
+  function getSpawnOptions() {
+    const u = getLocalUnit();
+    if (!world || !u) return [];
+    const options = [{ id: null, name: 'Home Base' }];
+    if (mode === 'pvbot' && world.flags) {
+      for (const f of world.flags) {
+        if (f.capturable && f.owner === u.team) options.push({ id: f.id, name: f.name });
+      }
+    }
+    return options;
+  }
+
   return {
     init, setupPvBot, setupPvEOffline, respawnAs,
     getLocalUnit, stopLoop,
-    getMode: () => mode
+    getMode: () => mode,
+    setSpawnChoice, getSpawnOptions
   };
 })();

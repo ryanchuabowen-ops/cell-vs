@@ -193,8 +193,13 @@ function damageUnit(target, amount, source, world, instaKill) {
       const contributor = world.units.find(u => u.id === cid);
       if (!contributor) continue;
       const contributed = target.damageContributors[idStr];
-      if (contributed >= threshold) contributor.kills++;
-      else {
+      if (contributed >= threshold) {
+        contributor.kills++;
+        // Separate from the main 'kill' event (which drives team score and
+        // the kill-feed banner for the primary killer only) -- this just lets
+        // the end-screen stats credit a 75%+ contributor's kill too.
+        world.events.push({ t: 'bonus_kill', unitId: contributor.id, victim: target.id, weaponShape: (source && source.lastAbilityShape) || 'dot' });
+      } else {
         contributor.assists++;
         world.events.push({ t: 'assist', unitId: contributor.id, victim: target.id });
       }

@@ -3,6 +3,8 @@
   let pendingAction = null;
   let gameInited = false;
   let respawnPickerShownFor = null;
+  // BF4-style deploy choice -- remembered across respawns within a match.
+  let lastSpawnChoiceId = null;
 
   // Remembers each character's last-chosen ability loadout so re-picking the
   // same character (including on respawn) starts from where you left off.
@@ -507,6 +509,38 @@
     // Default back to the character (and loadout) you just died as -- one
     // click to redeploy, but the full picker is still right there to change it.
     respawnPicker.select(diedAsCard || grid.querySelector('.char-card'), diedAsCard ? localUnit.charId : firstId);
+
+    // BF4-style deploy point choice -- home base, or any flag your team
+    // currently holds.
+    const spawnRow = $('spawn-point-row');
+    if (mode === 'pvbot') {
+      spawnRow.classList.remove('hidden');
+      let btnsWrap = spawnRow.querySelector('.spawn-point-btns');
+      if (!btnsWrap) {
+        btnsWrap = document.createElement('div');
+        btnsWrap.className = 'spawn-point-btns';
+        spawnRow.appendChild(btnsWrap);
+      }
+      const options = Game.getSpawnOptions();
+      if (!options.some(o => o.id === lastSpawnChoiceId)) lastSpawnChoiceId = options[0] ? options[0].id : null;
+      btnsWrap.innerHTML = '';
+      for (const opt of options) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'spawn-point-btn' + (opt.id === lastSpawnChoiceId ? ' active' : '');
+        b.textContent = opt.name;
+        b.addEventListener('click', () => {
+          lastSpawnChoiceId = opt.id;
+          Game.setSpawnChoice(opt.id);
+          btnsWrap.querySelectorAll('.spawn-point-btn').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+        });
+        btnsWrap.appendChild(b);
+      }
+      Game.setSpawnChoice(lastSpawnChoiceId);
+    } else {
+      spawnRow.classList.add('hidden');
+    }
   }
 
   function showMatchEnd(mode, result, scores, stats) {
@@ -537,6 +571,13 @@
     $('me-kd').textContent = (stats.deaths > 0 ? stats.kills / stats.deaths : stats.kills).toFixed(2);
     $('me-dmg-dealt').textContent = Math.round(stats.damageDealt);
     $('me-dmg-taken').textContent = Math.round(stats.damageTaken);
+    const flagsCard = $('me-flags-card');
+    if (mode === 'pvbot') {
+      flagsCard.classList.remove('hidden');
+      $('me-flags').textContent = stats.flagCaptures || 0;
+    } else {
+      flagsCard.classList.add('hidden');
+    }
 
     const weaponsWrap = $('matchend-weapons');
     weaponsWrap.innerHTML = '';
