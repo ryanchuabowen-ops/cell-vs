@@ -55,15 +55,21 @@ function drawMultilobe(ctx, u, def) {
     ctx.fill();
   }
 
-  ctx.fillStyle = def.dark;
-  ctx.globalAlpha = 0.85;
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.3;
-    ctx.beginPath();
-    ctx.arc(Math.cos(a) * r * 0.22, Math.sin(a) * r * 0.22, r * 0.26, 0, Math.PI * 2);
-    ctx.fill();
+  // The multi-lobed nucleus is expelled along with the granules when
+  // Degranulation fires -- it stays visibly gone for as long as the ability
+  // is recharging, as a readable "this is on cooldown" tell on the body itself.
+  const degranulating = u.abilities && u.abilities.secondary && u.abilities.secondary.name === 'Degranulation' && u.cd && u.cd.secondary > 0;
+  if (!degranulating) {
+    ctx.fillStyle = def.dark;
+    ctx.globalAlpha = 0.85;
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.3;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * r * 0.22, Math.sin(a) * r * 0.22, r * 0.26, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
 }
 
 // Plasma / B-cell: large eccentric nucleus and small antibody "Y" receptors.
