@@ -39,8 +39,7 @@ function createUnit(charId, team, controllerType, loadout) {
     chargeAngle: 0,
     chargeSpeed: 0,
     chargeHitRange: 0,
-    chargeKills: 0,
-    chargeKillCap: Infinity,
+    lyseCharges: 0,
     lastAbilityShape: 'dot',
     damageContributors: {},
     kills: 0, deaths: 0, assists: 0,
@@ -264,7 +263,9 @@ function useAbility(unit, slot, world) {
   // Dormant Endospore is purely passive -- it only fires itself from
   // triggerDeathSave() the instant a hit would be lethal, never from input.
   if (ab.type === 'endospore_escape') return;
-  unit.cd[slot] = ab.cooldown;
+  // Lyse manages its own cooldown -- it only goes on cooldown once all of
+  // its charges are spent, not after every individual dash.
+  if (ab.type !== 'charge_lyse') unit.cd[slot] = ab.cooldown;
   unit.lastAbilityShape = ab.shape || defaultShapeForType(ab.type);
 
   switch (ab.type) {
@@ -363,12 +364,19 @@ function useAbility(unit, slot, world) {
       break;
     }
     case 'charge_lyse': {
+      // Mid-dash already -- ignore the retrigger (a held/spammed button
+      // shouldn't restart or burn an extra charge while one is in flight).
+      if (unit.chargeUntil > world.time) break;
+      // First press of a fresh activation stocks up the full charge count;
+      // each press after that (including this one) spends one.
+      if (unit.lyseCharges <= 0) unit.lyseCharges = ab.chargeCount;
+      unit.lyseCharges--;
       unit.chargeUntil = world.time + ab.duration;
       unit.chargeAngle = unit.angle;
       unit.chargeSpeed = ab.chargeSpeed;
       unit.chargeHitRange = ab.range;
-      unit.chargeKills = 0;
-      unit.chargeKillCap = ab.killCap || Infinity;
+      // Only go on cooldown once every charge is used.
+      if (unit.lyseCharges <= 0) unit.cd[slot] = ab.cooldown;
       break;
     }
     case 'summon_clone': {
@@ -493,16 +501,9 @@ function updateUnit(unit, world, dt) {
     unit.y += Math.sin(unit.chargeAngle) * unit.chargeSpeed * dt;
     unit.angle = unit.chargeAngle;
     for (const u of world.units) {
-      if (unit.chargeKills >= unit.chargeKillCap) break;
       if (!u.alive || u.team === unit.team || u.id === unit.id) continue;
       const d = Math.hypot(u.x - unit.x, u.y - unit.y);
-      if (d < unit.radius + u.radius + unit.chargeHitRange) {
-        damageUnit(u, 0, unit, world, true);
-        if (!u.alive) {
-          unit.chargeKills++;
-          if (unit.chargeKills >= unit.chargeKillCap) unit.chargeUntil = world.time;
-        }
-      }
+      if (d < unit.radius + u.radius + unit.chargeHitRange) damageUnit(u, 0, unit, world, true);
     }
   } else {
     const len = Math.hypot(inp.mx, inp.my);

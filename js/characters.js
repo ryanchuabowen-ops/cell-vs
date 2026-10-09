@@ -106,8 +106,8 @@ const CHARACTERS = {
     blurb: 'PvE hero. A close-range assassin that attaches to a host and injects lethal DNA. A rechargeable shield soaks up fire on the way in, then a tank-style charge lets it plow through and lyse several enemies in one burst.',
     primary: {
       name: 'Lyse', type: 'charge_lyse', cooldown: 9, shape: 'claw',
-      duration: 0.9, chargeSpeed: 650, range: 14, killCap: 4,
-      desc: 'Charges forward in a straight line, instantly lysing (killing) every enemy it plows through along the way -- up to 4 kills in one committed dash, like a tank charge. Ends the instant it hits the 4th.'
+      duration: 0.45, chargeSpeed: 650, range: 14, chargeCount: 4,
+      desc: 'A quick forward charge that instantly lyses (kills) any enemy it plows through. Activating it loads 4 charges -- fire off up to 4 dashes in a row before it goes on its long recharge.'
     },
     secondary: {
       name: 'Phage Burst', type: 'shotgun_projectile', cooldown: 0.18,

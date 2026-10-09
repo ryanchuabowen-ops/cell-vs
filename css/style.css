@@ -11,6 +11,10 @@
 
 * { box-sizing: border-box; }
 
+/* Generic hide class -- several elements (ability detail panels, confirm
+   buttons, etc.) toggle this directly without a more specific selector. */
+.hidden { display: none; }
+
 html, body {
   margin: 0;
   padding: 0;
