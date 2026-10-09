@@ -85,6 +85,7 @@ button:active { transform: translateY(0); }
   font-weight: 700;
   border: none;
 }
+.confirm-btn.hidden { display: none; }
 /* The generic button:hover rule outranks .confirm-btn's own background by
    specificity, which was replacing its bright gradient with a near-black
    fill (dark text on dark background) on hover. Pin the hover state here,
@@ -319,6 +320,9 @@ button:active { transform: translateY(0); }
   background: #0b0f17; border: 1px solid var(--panel-border); border-radius: 10px;
   padding: 12px 8px;
 }
+/* Same specificity/order pitfall as .confirm-btn:hover above -- .stat-card's
+   own display:flex was silently winning over .hidden's display:none. */
+.stat-card.hidden { display: none; }
 .stat-value { font-size: 22px; font-weight: 800; color: var(--accent); }
 .stat-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
 
