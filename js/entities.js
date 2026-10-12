@@ -1,4 +1,5 @@
 let nextEntityId = 1;
+const X_SPEED_MULT = 1.5; // map is much wider than tall and play is primarily left-right, so horizontal movement gets a speed boost
 
 function createUnit(charId, team, controllerType, loadout) {
   const def = getCharacter(charId);
@@ -33,6 +34,11 @@ function createUnit(charId, team, controllerType, loadout) {
     invulnerable: false,
     invulnerableUntil: 0,
     invisibleUntil: 0,
+    cloakUntil: 0,
+    tempShieldUntil: 0,
+    supportedBy: null,
+    supportedUntil: 0,
+    ultimateUsed: false,
     summonedBy: null,
     expiresAt: 0,
     volley: null,
@@ -67,6 +73,8 @@ function createProjectile(owner, x, y, angle, opts) {
     piloted: !!opts.piloted,
     piercing: !!opts.piercing,
     targetId: opts.targetId || null,
+    targetCharId: opts.targetCharId || null,
+    ignoreInvis: !!opts.ignoreInvis,
     color: opts.color || '#ffffff',
     shape: opts.shape || 'dot',
     slow: opts.slow || 0,
@@ -150,8 +158,8 @@ function triggerDeathSave(target, world) {
   return true;
 }
 
-function damageUnit(target, amount, source, world, instaKill) {
-  if (!target.alive || target.invulnerable || target.invisibleUntil > world.time || target.invulnerableUntil > world.time) return;
+function damageUnit(target, amount, source, world, instaKill, ignoreInvis) {
+  if (!target.alive || target.invulnerable || (!ignoreInvis && target.invisibleUntil > world.time) || target.invulnerableUntil > world.time) return;
 
   // A rechargeable shield (e.g. the bacteriophage's) soaks up normal damage
   // before HP -- but can't stop an instant-kill effect, which bypasses it.
@@ -184,6 +192,18 @@ function damageUnit(target, amount, source, world, instaKill) {
     target.respawnAt = world.time + world.respawnDelay;
     if (creditTo && creditTo.id !== target.id) creditTo.kills++;
 
+    // T-Cell's Rapid Recharge: an ally recently sped up by a T-Cell who lands
+    // a kill credits the T-Cell with an assist, and the kill's damage counts
+    // toward the T-Cell's own damage-dealt total too.
+    if (creditTo && creditTo.supportedBy && creditTo.supportedUntil > world.time && creditTo.supportedBy !== creditTo.id) {
+      const supporter = world.units.find(u => u.id === creditTo.supportedBy);
+      if (supporter && supporter.id !== creditTo.id) {
+        supporter.assists++;
+        world.events.push({ t: 'assist', unitId: supporter.id, victim: target.id });
+        world.events.push({ t: 'hit', attackerId: supporter.id, victimId: target.id, x: target.x, y: target.y, amount: dealt, weaponShape: 'tcell_support' });
+      }
+    }
+
     // Any other contributor who dealt at least 75% of the victim's max HP
     // gets credited with a kill too, not just an assist.
     const threshold = target.maxHp * 0.75;
@@ -210,12 +230,15 @@ function damageUnit(target, amount, source, world, instaKill) {
   }
 }
 
-function findNearestEnemy(unit, world, maxRange) {
+function findNearestEnemy(unit, world, maxRange, opts) {
+  const charIdFilter = opts && opts.charId;
+  const ignoreInvis = opts && opts.ignoreInvis;
   let best = null, bestD = maxRange || Infinity;
   for (const u of world.units) {
     if (!u.alive || u.team === unit.team || u.id === unit.id) continue;
+    if (charIdFilter && u.charId !== charIdFilter) continue;
     const d = Math.hypot(u.x - unit.x, u.y - unit.y);
-    if (u.invisibleUntil > world.time && d > INVIS_DETECT_RANGE) continue;
+    if (!ignoreInvis && u.invisibleUntil > world.time && d > INVIS_DETECT_RANGE) continue;
     if (d < bestD) { bestD = d; best = u; }
   }
   return best;
@@ -241,12 +264,15 @@ function findAttachedEnemy(unit, world, buffer) {
   // is happening" when a player wades into a crowd expecting an instant kill.
   return human || best;
 }
-function findNearestEnemyBySide(p, world) {
+function findNearestEnemyBySide(p, world, opts) {
+  const charIdFilter = opts && opts.charId;
+  const ignoreInvis = opts && opts.ignoreInvis;
   let best = null, bestD = Infinity;
   for (const u of world.units) {
     if (!u.alive || u.team === p.team) continue;
+    if (charIdFilter && u.charId !== charIdFilter) continue;
     const d = Math.hypot(u.x - p.x, u.y - p.y);
-    if (u.invisibleUntil > world.time && d > INVIS_DETECT_RANGE) continue;
+    if (!ignoreInvis && u.invisibleUntil > world.time && d > INVIS_DETECT_RANGE) continue;
     if (d < bestD) { bestD = d; best = u; }
   }
   return best;
@@ -481,6 +507,79 @@ function useAbility(unit, slot, world) {
       }
       break;
     }
+    // T-Cell's Apoptosis: a self-guided missile that only ever locks onto
+    // Coronavirus, and can sense it even while cloaked -- the hard counter to
+    // Coronavirus's own Invisibility.
+    case 'antiviral_missile': {
+      const target = findNearestEnemy(unit, world, ab.range, { charId: 'coronavirus', ignoreInvis: true });
+      if (!target) break;
+      world.projectiles.push(createProjectile(unit, unit.x, unit.y, unit.angle,
+        { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, homing: true, targetId: target.id, targetCharId: 'coronavirus', ignoreInvis: true, color: def.color, shape: ab.shape }));
+      break;
+    }
+    // T-Cell's Rapid Healing: a passive aura, re-triggered automatically
+    // every tick via autoAbilityReady -- no button press needed.
+    case 'heal_aura': {
+      for (const u of world.units) {
+        if (!u.alive || u.team !== unit.team || u.id === unit.id || u.hp >= u.maxHp) continue;
+        const d = Math.hypot(u.x - unit.x, u.y - unit.y);
+        if (d < unit.radius + u.radius + ab.radius) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * ab.healFraction);
+      }
+      break;
+    }
+    // T-Cell's Rapid Recharge: shaves cooldowns off nearby allies and marks
+    // them as "supported" for a few seconds -- see damageUnit's kill-credit
+    // logic for the assist/damage payoff when a supported ally scores a kill.
+    case 'recharge_aura': {
+      for (const u of world.units) {
+        if (!u.alive || u.team !== unit.team || u.id === unit.id) continue;
+        const d = Math.hypot(u.x - unit.x, u.y - unit.y);
+        if (d < unit.radius + u.radius + ab.radius) {
+          if (u.cd.primary > 0) u.cd.primary = Math.max(0, u.cd.primary - ab.rechargeAmount);
+          if (u.cd.secondary > 0) u.cd.secondary = Math.max(0, u.cd.secondary - ab.rechargeAmount);
+          if (u.cd.wall > 0) u.cd.wall = Math.max(0, u.cd.wall - ab.rechargeAmount);
+          u.supportedBy = unit.id;
+          u.supportedUntil = world.time + ab.supportWindow;
+        }
+      }
+      break;
+    }
+    // Ebola's Shielding: grants a temporary shield (even to pathogens with no
+    // innate shield of their own) that decays back to baseline in updateUnit
+    // once tempShieldUntil passes.
+    case 'shield_aura': {
+      for (const u of world.units) {
+        if (!u.alive || u.team !== unit.team || u.id === unit.id) continue;
+        const d = Math.hypot(u.x - unit.x, u.y - unit.y);
+        if (d < unit.radius + u.radius + ab.radius) {
+          u.shield = Math.max(u.shield, ab.shieldAmount);
+          u.maxShield = Math.max(u.maxShield, ab.shieldAmount);
+          u.tempShieldUntil = world.time + ab.duration;
+        }
+      }
+      break;
+    }
+    // Ebola's Viral Cloak: hides nearby allied pathogens from enemy view only
+    // -- unlike Coronavirus's own Invisibility, it does not touch damageUnit
+    // or targeting, so a cloaked ally is still fully hittable as normal.
+    case 'cloak_aura': {
+      for (const u of world.units) {
+        if (!u.alive || u.team !== unit.team || u.id === unit.id) continue;
+        const d = Math.hypot(u.x - unit.x, u.y - unit.y);
+        if (d < unit.radius + u.radius + ab.radius) u.cloakUntil = world.time + ab.duration;
+      }
+      break;
+    }
+    // Ebola's Environmental Toxin: a single-use-per-match ultimate, gated in
+    // the updateUnit input-check (see abilityLocked) until the pathogen team
+    // reaches half of WIN_SCORE. Drops a hazard that never expires.
+    case 'permanent_poison': {
+      unit.ultimateUsed = true;
+      const hx = clamp(unit.x + Math.cos(unit.angle) * ab.range, 20, WORLD_W - 20);
+      const hy = clamp(unit.y + Math.sin(unit.angle) * ab.range, 20, WORLD_H - 20);
+      world.hazards.push(createHazard(unit, 'cloud', hx, hy, ab));
+      break;
+    }
   }
 }
 
@@ -525,6 +624,15 @@ function updateUnit(unit, world, dt) {
   }
   if (def.shield && unit.shield < unit.maxShield && world.time - unit.lastShieldHitTime > def.shield.regenDelay) {
     unit.shield = Math.min(unit.maxShield, unit.shield + def.shield.regenRate * dt);
+  }
+
+  // Ebola's Shielding grants a temporary shield to units with no innate
+  // shield of their own -- once its 5s window is up, drop back to baseline
+  // instead of leaving a permanently inflated maxShield behind.
+  if (unit.tempShieldUntil && world.time > unit.tempShieldUntil) {
+    unit.shield = 0;
+    unit.maxShield = def.shield ? def.shield.max : 0;
+    unit.tempShieldUntil = 0;
   }
 
   // Strep A: running a live SpeB trail or having a mine out in the field is
@@ -577,7 +685,7 @@ function updateUnit(unit, world, dt) {
   } else {
     const len = Math.hypot(inp.mx, inp.my);
     if (len > 0.001) {
-      unit.x += (inp.mx / len) * speed * dt;
+      unit.x += (inp.mx / len) * speed * X_SPEED_MULT * dt;
       unit.y += (inp.my / len) * speed * dt;
     }
     unit.angle = inp.aim;
@@ -592,10 +700,10 @@ function updateUnit(unit, world, dt) {
   if (unit.trailChannel) updateTrailChannel(unit, world, dt);
   if (unit.volley) updateVolley(unit, world, dt);
 
-  if (unit.cd.primary <= 0) {
+  if (unit.cd.primary <= 0 && !abilityLocked(unit, unit.abilities.primary, world)) {
     if (unit.abilities.primary.auto ? autoAbilityReady(unit, world, unit.abilities.primary) : inp.primary) useAbility(unit, 'primary', world);
   }
-  if (unit.cd.secondary <= 0) {
+  if (unit.cd.secondary <= 0 && !abilityLocked(unit, unit.abilities.secondary, world)) {
     if (unit.abilities.secondary.auto ? autoAbilityReady(unit, world, unit.abilities.secondary) : inp.secondary) useAbility(unit, 'secondary', world);
   }
   if (inp.wall && unit.cd.wall <= 0) useWallKit(unit, world);
@@ -607,7 +715,33 @@ function autoAbilityReady(unit, world, ab) {
   if (ab.type === 'melee_bite' || ab.type === 'melee_instakill') {
     return !!findAttachedEnemy(unit, world, ab.range);
   }
+  if (ab.type === 'heal_aura') {
+    return world.units.some(u => u.alive && u.team === unit.team && u.id !== unit.id && u.hp < u.maxHp &&
+      Math.hypot(u.x - unit.x, u.y - unit.y) < unit.radius + u.radius + ab.radius);
+  }
+  if (ab.type === 'recharge_aura') {
+    return world.units.some(u => u.alive && u.team === unit.team && u.id !== unit.id &&
+      (u.cd.primary > 0 || u.cd.secondary > 0 || u.cd.wall > 0) &&
+      Math.hypot(u.x - unit.x, u.y - unit.y) < unit.radius + u.radius + ab.radius);
+  }
+  if (ab.type === 'shield_aura') {
+    return world.units.some(u => u.alive && u.team === unit.team && u.id !== unit.id && u.tempShieldUntil < world.time &&
+      Math.hypot(u.x - unit.x, u.y - unit.y) < unit.radius + u.radius + ab.radius);
+  }
+  if (ab.type === 'cloak_aura') {
+    return world.units.some(u => u.alive && u.team === unit.team && u.id !== unit.id && u.cloakUntil < world.time - 2 &&
+      Math.hypot(u.x - unit.x, u.y - unit.y) < unit.radius + u.radius + ab.radius);
+  }
   return false;
+}
+
+// Ebola's Environmental Toxin is a single-use ultimate: locked out entirely
+// until the pathogen team reaches half of WIN_SCORE, and permanently locked
+// again (forever) once it has actually been fired.
+function abilityLocked(unit, ab, world) {
+  if (ab.type !== 'permanent_poison') return false;
+  if (unit.ultimateUsed) return true;
+  return !world.scores || world.scores.pathogen < WIN_SCORE / 2;
 }
 
 const WALL_KIT_COOLDOWN = 11;
@@ -694,7 +828,7 @@ function updateProjectile(p, world, dt) {
   } else if (p.homing) {
     let target = p.targetId ? world.units.find(u => u.id === p.targetId && u.alive) : null;
     if (!target) {
-      target = findNearestEnemyBySide(p, world);
+      target = findNearestEnemyBySide(p, world, { charId: p.targetCharId, ignoreInvis: p.ignoreInvis });
       p.targetId = target ? target.id : null;
     }
     if (target) {
@@ -732,11 +866,12 @@ function updateProjectile(p, world, dt) {
 
   for (const u of world.units) {
     if (!u.alive || u.team === p.team) continue;
+    if (p.targetCharId && u.charId !== p.targetCharId) continue;
     const d = Math.hypot(u.x - p.x, u.y - p.y);
     if (d < u.radius + p.radius + p.hitTolerance) {
       const owner = world.units.find(x => x.id === p.ownerId);
       if (p.aoe > 0) applyAoeDamage(p, world, owner);
-      else damageUnit(u, p.damage, owner, world, p.instaKill);
+      else damageUnit(u, p.damage, owner, world, p.instaKill, p.ignoreInvis);
       if (p.slow > 0 && u.alive) {
         u.slowUntil = world.time + p.slowDuration;
         u.slowAmount = p.slow;

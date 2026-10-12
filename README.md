@@ -2,7 +2,7 @@
 
 A free, browser-based 2D top-down immune-system arena brawler. No build step, no backend, no accounts -- pure HTML/CSS/JS, deployable straight to GitHub Pages.
 
-Play as one of **6 characters** (3 Immune Cells, 3 Pathogens) in **PvBot** (10v10 vs AI), or lead a horde of 20 AI allies as any character -- including a Bacteriophage or Virophage hero -- in **PvE**.
+Play as one of **8 characters** (4 Immune Cells, 4 Pathogens) in **PvBot** (16v16 vs AI), or lead a horde of 20 AI allies as any character -- including a Bacteriophage or Virophage hero -- in **PvE**.
 
 ## Characters
 
@@ -11,9 +11,11 @@ Play as one of **6 characters** (3 Immune Cells, 3 Pathogens) in **PvBot** (10v1
 | Macrophage | Immune | Engulf Surge -- grows larger/faster for 4s, devours enemies on touch | Phagocytose -- attach-range bite (must make contact) |
 | Neutrophil | Immune | NETosis -- sticky nets that slow + damage | Toxin Spray -- rapid-fire darts |
 | Plasma / B-Cell | Immune | Antibody Barrage -- fires in all directions | IgG Shotgun -- forward spread |
-| Anthrax / E.coli | Pathogen | Lethal Toxin -- single shot, instant-kill blast, very long recharge | Edema Toxin -- standard shot |
+| T Cell | Immune | Apoptosis -- homing missile that hunts Coronavirus specifically, even cloaked | Rapid Healing / Rapid Recharge -- passive support aura |
+| Anthrax | Pathogen | Lethal Toxin -- single shot, instant-kill blast, very long recharge | Edema Toxin -- standard shot |
 | Coronavirus | Pathogen | Viral Clone -- homing clone that instantly kills on contact | Spike Burst -- area-damage shot |
 | Strep A | Pathogen | SpeB Trail -- leaves a damaging/slowing trail as it moves | Streptolysin Shot -- standard shot |
+| Ebola | Pathogen | Environmental Toxin -- one-time ultimate, permanently poisons an area once the team is halfway to victory | Shielding / Viral Cloak -- passive support aura |
 | Bacteriophage (PvE) | Phage | Lyse -- attach-range instant kill | Phage Burst -- fast 3-round spread |
 | Virophage (PvE) | Phage | Genome Injection -- homing instant-kill shot, no contact needed | Capsid Burst -- fast 3-round spread |
 

@@ -1,4 +1,4 @@
-const WIN_SCORE = 60;
+const WIN_SCORE = 100;
 const MATCH_DURATION = 360;
 const FLAG_RADIUS = 95;
 const CAPTURE_RATE = 1 / 6;
@@ -46,16 +46,30 @@ const PICKUP_RESPAWN_DELAY = 25;
 const PVE_PICKUP_RESPAWN_DELAY = 12;
 const HEALTH_PICKUP_FRACTION = 0.45;
 const PICKUP_SPOTS = [
-  { id: 'h1', type: 'health', x: 500, y: 300 },
-  { id: 'h2', type: 'health', x: 500, y: 1000 },
-  { id: 'h3', type: 'health', x: 1500, y: 300 },
-  { id: 'h4', type: 'health', x: 1500, y: 1000 },
-  { id: 'r1', type: 'recharge', x: 720, y: 650 },
-  { id: 'r2', type: 'recharge', x: 1280, y: 650 }
+  { id: 'h1', type: 'health', x: 350, y: 200 },
+  { id: 'h2', type: 'health', x: 750, y: 180 },
+  { id: 'h3', type: 'health', x: 1250, y: 180 },
+  { id: 'h4', type: 'health', x: 1650, y: 200 },
+  { id: 'h5', type: 'health', x: 150, y: 650 },
+  { id: 'h6', type: 'health', x: 1850, y: 650 },
+  { id: 'h7', type: 'health', x: 350, y: 1100 },
+  { id: 'h8', type: 'health', x: 750, y: 1120 },
+  { id: 'h9', type: 'health', x: 1250, y: 1120 },
+  { id: 'h10', type: 'health', x: 1650, y: 1100 },
+  { id: 'h11', type: 'health', x: 500, y: 950 },
+  { id: 'h12', type: 'health', x: 1500, y: 350 },
+  { id: 'h13', type: 'health', x: 1000, y: 150 },
+  { id: 'r1', type: 'recharge', x: 1000, y: 1150 },
+  { id: 'r2', type: 'recharge', x: 550, y: 650 },
+  { id: 'r3', type: 'recharge', x: 1450, y: 650 },
+  { id: 'r4', type: 'recharge', x: 350, y: 500 },
+  { id: 'r5', type: 'recharge', x: 1650, y: 800 },
+  { id: 'r6', type: 'recharge', x: 700, y: 950 },
+  { id: 'r7', type: 'recharge', x: 1300, y: 350 }
 ];
 
 // PvE is a solo wave-survival grind with no flag sanctuaries to heal at, so it
-// gets a much denser spread of health/recharge kits than PvBot's 6.
+// cycles kits back faster than PvBot (see PVE_PICKUP_RESPAWN_DELAY).
 const PVE_PICKUP_SPOTS = [
   { id: 'h1', type: 'health', x: 350, y: 250 },
   { id: 'h2', type: 'health', x: 350, y: 1050 },
@@ -70,7 +84,22 @@ const PVE_PICKUP_SPOTS = [
   { id: 'r3', type: 'recharge', x: 950, y: 850 },
   { id: 'r4', type: 'recharge', x: 1350, y: 650 },
   { id: 'r5', type: 'recharge', x: 1700, y: 300 },
-  { id: 'r6', type: 'recharge', x: 1700, y: 1000 }
+  { id: 'r6', type: 'recharge', x: 1700, y: 1000 },
+  { id: 'h9', type: 'health', x: 150, y: 650 },
+  { id: 'h10', type: 'health', x: 1850, y: 650 },
+  { id: 'h11', type: 'health', x: 1000, y: 150 },
+  { id: 'r7', type: 'recharge', x: 1000, y: 1150 },
+  { id: 'r8', type: 'recharge', x: 500, y: 950 },
+  { id: 'r9', type: 'recharge', x: 1500, y: 350 },
+  { id: 'r10', type: 'recharge', x: 600, y: 180 },
+  { id: 'r11', type: 'recharge', x: 1400, y: 1120 },
+  // Floaty recharge kits drift around the map instead of sitting still --
+  // see updateFloatyPickups, which bounces them off the world edges.
+  { id: 'r12', type: 'recharge', x: 250, y: 350, floaty: true, vx: 35, vy: -20 },
+  { id: 'r13', type: 'recharge', x: 1750, y: 950, floaty: true, vx: -30, vy: 25 },
+  { id: 'r14', type: 'recharge', x: 1000, y: 500, floaty: true, vx: 25, vy: 30 },
+  { id: 'r15', type: 'recharge', x: 1000, y: 800, floaty: true, vx: -25, vy: -30 },
+  { id: 'r16', type: 'recharge', x: 850, y: 650, floaty: true, vx: 40, vy: 15 }
 ];
 
 const Game = (() => {
@@ -168,7 +197,10 @@ const Game = (() => {
       wave: 1,
       waveTimer: PVE_TIER_DURATION,
       spawnTimer: 1,
-      heroLives: 5
+      heroLives: 5,
+      // Reference, not a copy -- Ebola's ultimate-unlock check in entities.js
+      // reads this directly, and it must stay in sync with later score updates.
+      scores
     };
   }
 
@@ -209,6 +241,15 @@ const Game = (() => {
     u.speed = u.baseSpeed;
     u.devourUntil = 0;
     u.damageContributors = {};
+    // Ebola's Shielding grants temp shield even to units with no innate
+    // shield of their own -- drop it back to baseline on respawn so it can't
+    // linger as a permanent stat bump if death cut the 5s window short.
+    u.shield = def.shield ? def.shield.max : 0;
+    u.maxShield = def.shield ? def.shield.max : 0;
+    u.tempShieldUntil = 0;
+    u.cloakUntil = 0;
+    u.supportedBy = null;
+    u.supportedUntil = 0;
     placeAtSpawn(u, w);
   }
 
@@ -342,8 +383,23 @@ const Game = (() => {
     }
   }
 
+  // A handful of kits (PvE's floaty recharge spots) drift around and bounce
+  // off the map edges instead of sitting still at a fixed spot.
+  function updateFloatyPickups(dt) {
+    for (const p of world.pickups) {
+      if (!p.floaty) continue;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.x < PICKUP_RADIUS) { p.x = PICKUP_RADIUS; p.vx = Math.abs(p.vx); }
+      if (p.x > WORLD_W - PICKUP_RADIUS) { p.x = WORLD_W - PICKUP_RADIUS; p.vx = -Math.abs(p.vx); }
+      if (p.y < PICKUP_RADIUS) { p.y = PICKUP_RADIUS; p.vy = Math.abs(p.vy); }
+      if (p.y > WORLD_H - PICKUP_RADIUS) { p.y = WORLD_H - PICKUP_RADIUS; p.vy = -Math.abs(p.vy); }
+    }
+  }
+
   function stepSimulation(dt) {
     updateFloaters(world, dt);
+    updateFloatyPickups(dt);
     world.tempWalls = world.tempWalls.filter(w => w.expiresAt > world.time);
     world.obstacles = WALLS.concat(world.floaters, world.tempWalls);
     world.fx = world.fx.filter(f => world.time - f.start < f.life);
@@ -527,8 +583,8 @@ const Game = (() => {
     placeAtSpawn(local, world);
     world.units.push(local);
     localUnitId = local.id;
-    fillBotTeam(world, 'immune', side === 'immune' ? 9 : 10);
-    fillBotTeam(world, 'pathogen', side === 'pathogen' ? 9 : 10);
+    fillBotTeam(world, 'immune', side === 'immune' ? 15 : 16);
+    fillBotTeam(world, 'pathogen', side === 'pathogen' ? 15 : 16);
     startLoop();
   }
 
@@ -1383,7 +1439,7 @@ const Game = (() => {
     const local = getLocalUnit();
     for (const u of world.units) {
       if (!u.alive) continue;
-      if (u.invisibleUntil > world.time && local && u.team !== local.team) {
+      if ((u.invisibleUntil > world.time || u.cloakUntil > world.time) && local && u.team !== local.team) {
         if (Math.hypot(u.x - local.x, u.y - local.y) > INVIS_DETECT_RANGE) continue;
       }
       const def = getCharacter(u.charId);
@@ -1394,7 +1450,7 @@ const Game = (() => {
       ctx.rotate(u.angle);
       const idlePhase = world.time * 2.2 + u.id * 1.7;
       ctx.scale(1 + Math.sin(idlePhase) * 0.035, 1 + Math.cos(idlePhase * 0.8) * 0.035);
-      if (u.invisibleUntil > world.time) ctx.globalAlpha = 0.45;
+      if (u.invisibleUntil > world.time || u.cloakUntil > world.time) ctx.globalAlpha = 0.45;
       drawCharacterShape(ctx, u, def);
       if (devouring) {
         ctx.strokeStyle = '#ffffff';

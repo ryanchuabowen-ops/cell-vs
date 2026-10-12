@@ -219,6 +219,8 @@ function drawCharacterShape(ctx, u, def) {
     case 'chain': drawChain(ctx, u, def); break;
     case 'phage': drawPhageLander(ctx, u, def); break;
     case 'virophage': drawSpiky(ctx, u, def, 7, u.radius * 0.4); break;
+    case 'tcell': drawSpiky(ctx, u, def, 10, u.radius * 0.3); break;
+    case 'ebola': drawChain(ctx, u, def); break;
     default: drawCellBase(ctx, u.radius, def.color, def.dark);
   }
 }
