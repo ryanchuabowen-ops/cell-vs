@@ -52,8 +52,8 @@ const CHARACTERS = {
   tcell: {
     id: 'tcell', name: 'T Cell', side: 'immune',
     color: '#ff8f6b', dark: '#8a3a1f', shape: 'tcell',
-    radius: 17, speed: 190, maxHp: 115,
-    blurb: 'Pure support specialist -- no general-purpose weapon of its own, just a passive aura that heals or recharges whoever it sticks close to, and a hard-counter missile for Coronavirus specifically.',
+    radius: 17, speed: 190, maxHp: 115, regen: 0.03,
+    blurb: 'Pure support specialist -- no general-purpose weapon of its own, just a passive aura that heals or recharges whoever it sticks close to, and a hard-counter missile for Coronavirus specifically. Self-sustains with its own regen, so it never has to retreat to spawn to keep healing others.',
     primary: {
       name: 'Apoptosis', type: 'antiviral_missile', cooldown: 11, shape: 'missile',
       speed: 480, life: 4.5, radius: 8, range: 1100,
@@ -61,8 +61,8 @@ const CHARACTERS = {
     },
     secondary: {
       name: 'Rapid Healing', type: 'heal_aura', cooldown: 0.4, auto: true,
-      radius: 75, healFraction: 0.05,
-      desc: 'Passive -- any ally that stays close or touching is steadily healed. Always active, no input needed.'
+      radius: 75, healFraction: 0.05, supportWindow: 5,
+      desc: 'Passive -- any ally that gets close is steadily healed, and one that actually touches the T-Cell is healed to full instantly. Always active, no input needed. A healed ally who kills or deals damage soon after credits the T-Cell with an assist and a cut of the damage.'
     }
   },
   bacterium: {
@@ -118,8 +118,8 @@ const CHARACTERS = {
   ebola: {
     id: 'ebola', name: 'Ebola', side: 'pathogen',
     color: '#8a0f2e', dark: '#3a0515', shape: 'ebola',
-    radius: 18, speed: 170, maxHp: 115,
-    blurb: 'Pure support specialist -- no general-purpose weapon of its own, just a passive aura that shields or cloaks nearby pathogens, and a single-use ultimate that permanently poisons part of the map once the team is halfway to victory.',
+    radius: 18, speed: 170, maxHp: 115, regen: 0.03,
+    blurb: 'Pure support specialist -- no general-purpose weapon of its own, just a passive aura that shields or cloaks nearby pathogens, and a single-use ultimate that permanently poisons part of the map once the team is halfway to victory. Self-sustains with its own regen, so it never has to retreat to spawn to keep supporting others.',
     primary: {
       name: 'Environmental Toxin', type: 'permanent_poison', cooldown: 1, shape: 'cloud',
       range: 220, radius: 150, hazardLife: Infinity, killCap: Infinity, tickDamage: 11, tickInterval: 0.5,
@@ -128,7 +128,7 @@ const CHARACTERS = {
     secondary: {
       name: 'Shielding', type: 'shield_aura', cooldown: 0.4, auto: true,
       radius: 75, shieldAmount: 45, duration: 5,
-      desc: 'Passive -- any allied pathogen that stays close or touching gets a temporary 5s shield that soaks up damage before HP. Always active, no input needed.'
+      desc: 'Passive -- any allied pathogen that stays close or touching gets a temporary 5s shield that soaks up damage before HP. Always active, no input needed. A shielded ally who kills or deals damage soon after credits Ebola with an assist and a cut of the damage.'
     }
   },
   phage: {
@@ -240,7 +240,7 @@ CHARACTERS.tcell.secondaryOptions = [
   {
     name: 'Rapid Recharge', type: 'recharge_aura', cooldown: 0.4, auto: true,
     radius: 75, rechargeAmount: 0.6, supportWindow: 5,
-    desc: 'Passive -- speeds up nearby allies\' ability cooldowns. An ally you recharge who lands a kill credits you with an assist, and the kill\'s damage counts toward your own damage total too.'
+    desc: 'Passive -- speeds up nearby allies\' ability cooldowns. An ally you recharge who lands a kill credits you with an assist, and 60% of any damage they deal while recharged counts toward your own damage total too.'
   }
 ];
 

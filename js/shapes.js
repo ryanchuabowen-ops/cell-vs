@@ -167,6 +167,29 @@ function drawChain(ctx, u, def) {
   }
 }
 
+// Ebola: a looped, filamentous thread -- the real virus's signature
+// "shepherd's crook" shape, not a round cell body.
+function drawEbola(ctx, u, def) {
+  const r = u.radius;
+  const tracePath = () => {
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.35, -r * 0.5);
+    ctx.bezierCurveTo(-r * 0.25, -r * 1.25, r * 1.2, -r * 0.95, r * 1.25, -r * 0.05);
+    ctx.bezierCurveTo(r * 1.3, r * 0.75, r * 0.2, r * 1.05, -r * 0.35, r * 0.55);
+    ctx.bezierCurveTo(-r * 0.75, r * 0.2, -r * 0.45, -r * 0.15, r * 0.15, 0);
+  };
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = def.dark;
+  ctx.lineWidth = r * 0.52;
+  tracePath();
+  ctx.stroke();
+  ctx.strokeStyle = def.color;
+  ctx.lineWidth = r * 0.34;
+  tracePath();
+  ctx.stroke();
+}
+
 // Bacteriophage: the classic "lunar lander" silhouette -- capsid head, tail
 // sheath, and splayed leg fibers facing forward.
 function drawPhageLander(ctx, u, def) {
@@ -220,7 +243,7 @@ function drawCharacterShape(ctx, u, def) {
     case 'phage': drawPhageLander(ctx, u, def); break;
     case 'virophage': drawSpiky(ctx, u, def, 7, u.radius * 0.4); break;
     case 'tcell': drawSpiky(ctx, u, def, 10, u.radius * 0.3); break;
-    case 'ebola': drawChain(ctx, u, def); break;
+    case 'ebola': drawEbola(ctx, u, def); break;
     default: drawCellBase(ctx, u.radius, def.color, def.dark);
   }
 }

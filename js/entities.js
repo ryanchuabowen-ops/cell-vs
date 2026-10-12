@@ -174,6 +174,17 @@ function damageUnit(target, amount, source, world, instaKill, ignoreInvis) {
   const dealt = instaKill ? preHp : amount;
   world.events.push({ t: 'hit', attackerId: source ? source.id : null, victimId: target.id, x: target.x, y: target.y, amount: dealt, weaponShape: (source && source.lastAbilityShape) || 'dot' });
 
+  // A healer/recharger's support shows up in their own stats too, so a pure
+  // support character's end screen isn't blank: 60% of every point of damage
+  // a currently-supported ally deals also counts toward the supporter's own
+  // damage-dealt total -- not just the finishing blow.
+  if (source && source.supportedBy && source.supportedUntil > world.time && source.supportedBy !== source.id && dealt > 0) {
+    const supporter = world.units.find(u => u.id === source.supportedBy);
+    if (supporter && supporter.id !== source.id) {
+      world.events.push({ t: 'hit', attackerId: supporter.id, victimId: target.id, x: target.x, y: target.y, amount: dealt * 0.6, weaponShape: 'support' });
+    }
+  }
+
   // A killing blow can be shrugged off entirely by a death-save ability
   // (e.g. the bacterium's Dormant Endospore) instead of actually landing.
   if (preHp - dealt <= 0 && triggerDeathSave(target, world)) return;
@@ -192,15 +203,14 @@ function damageUnit(target, amount, source, world, instaKill, ignoreInvis) {
     target.respawnAt = world.time + world.respawnDelay;
     if (creditTo && creditTo.id !== target.id) creditTo.kills++;
 
-    // T-Cell's Rapid Recharge: an ally recently sped up by a T-Cell who lands
-    // a kill credits the T-Cell with an assist, and the kill's damage counts
-    // toward the T-Cell's own damage-dealt total too.
+    // T-Cell's Rapid Healing/Rapid Recharge: an ally recently healed or
+    // recharged by a T-Cell who lands a kill credits the T-Cell with an
+    // assist (the damage share was already credited above, on every hit).
     if (creditTo && creditTo.supportedBy && creditTo.supportedUntil > world.time && creditTo.supportedBy !== creditTo.id) {
       const supporter = world.units.find(u => u.id === creditTo.supportedBy);
       if (supporter && supporter.id !== creditTo.id) {
         supporter.assists++;
         world.events.push({ t: 'assist', unitId: supporter.id, victim: target.id });
-        world.events.push({ t: 'hit', attackerId: supporter.id, victimId: target.id, x: target.x, y: target.y, amount: dealt, weaponShape: 'tcell_support' });
       }
     }
 
@@ -518,12 +528,20 @@ function useAbility(unit, slot, world) {
       break;
     }
     // T-Cell's Rapid Healing: a passive aura, re-triggered automatically
-    // every tick via autoAbilityReady -- no button press needed.
+    // every tick via autoAbilityReady -- no button press needed. Actual
+    // contact is a full instant heal; just being close is a steady trickle.
+    // Marks whoever it actually heals as "supported" -- see damageUnit for
+    // the assist/damage payoff this earns the T-Cell.
     case 'heal_aura': {
       for (const u of world.units) {
         if (!u.alive || u.team !== unit.team || u.id === unit.id || u.hp >= u.maxHp) continue;
         const d = Math.hypot(u.x - unit.x, u.y - unit.y);
-        if (d < unit.radius + u.radius + ab.radius) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * ab.healFraction);
+        const touchDist = unit.radius + u.radius;
+        if (d < touchDist) u.hp = u.maxHp;
+        else if (d < touchDist + ab.radius) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * ab.healFraction);
+        else continue;
+        u.supportedBy = unit.id;
+        u.supportedUntil = world.time + (ab.supportWindow || 5);
       }
       break;
     }
@@ -546,7 +564,8 @@ function useAbility(unit, slot, world) {
     }
     // Ebola's Shielding: grants a temporary shield (even to pathogens with no
     // innate shield of their own) that decays back to baseline in updateUnit
-    // once tempShieldUntil passes.
+    // once tempShieldUntil passes. Also marks the shielded ally as
+    // "supported", same payoff as T-Cell's auras -- see damageUnit.
     case 'shield_aura': {
       for (const u of world.units) {
         if (!u.alive || u.team !== unit.team || u.id === unit.id) continue;
@@ -555,6 +574,8 @@ function useAbility(unit, slot, world) {
           u.shield = Math.max(u.shield, ab.shieldAmount);
           u.maxShield = Math.max(u.maxShield, ab.shieldAmount);
           u.tempShieldUntil = world.time + ab.duration;
+          u.supportedBy = unit.id;
+          u.supportedUntil = world.time + (ab.supportWindow || ab.duration);
         }
       }
       break;
