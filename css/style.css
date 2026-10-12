@@ -190,12 +190,9 @@ button:active { transform: translateY(0); }
 #screen-charselect .panel h2 { margin-bottom: 10px; font-size: 20px; }
 #charselect-grid .char-card.compact { padding: 6px; }
 #charselect-grid .char-swatch-canvas { width: 32px; height: 32px; margin-bottom: 2px; }
-/* Each team's roster lines up single file (one per row) instead of wrapping
-   3-across with a lone 4th card stranded on its own row below. */
-#charselect-grid .char-grid.compact { grid-template-columns: 1fr; }
-#charselect-grid .char-card.compact { display: flex; align-items: center; gap: 10px; text-align: left; }
-#charselect-grid .char-card.compact .char-swatch-canvas { margin: 0; flex-shrink: 0; }
-#charselect-grid .char-card.compact .char-name { font-size: 13px; }
+/* Each team's roster lines up single file (all 4 in one row) instead of
+   wrapping 3-across with a lone 4th card stranded on its own row below. */
+#charselect-grid .char-grid.compact { grid-template-columns: repeat(4, 1fr); }
 .char-group-title.immune-title { color: var(--immune); }
 .char-group-title.pathogen-title { color: var(--pathogen); }
 .char-group-title.phage-title { color: var(--accent); }

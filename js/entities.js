@@ -19,6 +19,7 @@ function createUnit(charId, team, controllerType, loadout) {
     hp: def.maxHp, maxHp: def.maxHp,
     shield: def.shield ? def.shield.max : 0,
     maxShield: def.shield ? def.shield.max : 0,
+    shieldDoubled: false,
     lastShieldHitTime: -999,
     _hazardHpBonusActive: false,
     alive: true,
@@ -530,18 +531,38 @@ function useAbility(unit, slot, world) {
     // T-Cell's Rapid Healing: a passive aura, re-triggered automatically
     // every tick via autoAbilityReady -- no button press needed. Actual
     // contact is a full instant heal; just being close is a steady trickle.
-    // Marks whoever it actually heals as "supported" -- see damageUnit for
-    // the assist/damage payoff this earns the T-Cell.
+    // Marks whoever it actually heals (or shield-buffs) as "supported" --
+    // see damageUnit for the assist/damage payoff this earns the T-Cell.
     case 'heal_aura': {
       for (const u of world.units) {
-        if (!u.alive || u.team !== unit.team || u.id === unit.id || u.hp >= u.maxHp) continue;
+        if (!u.alive || u.team !== unit.team || u.id === unit.id) continue;
         const d = Math.hypot(u.x - unit.x, u.y - unit.y);
-        const touchDist = unit.radius + u.radius;
-        if (d < touchDist) u.hp = u.maxHp;
-        else if (d < touchDist + ab.radius) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * ab.healFraction);
-        else continue;
-        u.supportedBy = unit.id;
-        u.supportedUntil = world.time + (ab.supportWindow || 5);
+        const touchDist = unit.radius + u.radius + (ab.touchBuffer || 0);
+        const touching = d < touchDist;
+        if (!touching && d >= touchDist + ab.radius) continue;
+
+        let supported = false;
+        if (u.hp < u.maxHp) {
+          u.hp = touching ? u.maxHp : Math.min(u.maxHp, u.hp + u.maxHp * ab.healFraction);
+          supported = true;
+        }
+        // Macrophage's shield capacity doubles once, the first time it
+        // actually touches a T-Cell. Once that doubled shield is later
+        // depleted, updateUnit caps it back at the normal max for good --
+        // it does not regenerate back up to double again this life.
+        if (touching && u.charId === 'macrophage' && !u.shieldDoubled) {
+          const mDef = getCharacter(u.charId);
+          if (mDef.shield) {
+            u.maxShield = mDef.shield.max * 2;
+            u.shield = u.maxShield;
+            u.shieldDoubled = true;
+            supported = true;
+          }
+        }
+        if (supported) {
+          u.supportedBy = unit.id;
+          u.supportedUntil = world.time + (ab.supportWindow || 5);
+        }
       }
       break;
     }
@@ -654,6 +675,14 @@ function updateUnit(unit, world, dt) {
     unit.shield = 0;
     unit.maxShield = def.shield ? def.shield.max : 0;
     unit.tempShieldUntil = 0;
+  }
+
+  // Macrophage's shield capacity doubles once (a one-time life-of-the-spawn
+  // bonus) the first time it touches a T-Cell. Once that doubled shield is
+  // actually depleted, the bonus is spent -- it caps back at the normal max
+  // instead of regenerating back up to double again.
+  if (unit.shieldDoubled && unit.shield <= 0 && def.shield && unit.maxShield > def.shield.max) {
+    unit.maxShield = def.shield.max;
   }
 
   // Strep A: running a live SpeB trail or having a mine out in the field is

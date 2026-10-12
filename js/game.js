@@ -247,6 +247,7 @@ const Game = (() => {
     u.shield = def.shield ? def.shield.max : 0;
     u.maxShield = def.shield ? def.shield.max : 0;
     u.tempShieldUntil = 0;
+    u.shieldDoubled = false;
     u.cloakUntil = 0;
     u.supportedBy = null;
     u.supportedUntil = 0;
@@ -1435,6 +1436,36 @@ const Game = (() => {
     }
   }
 
+  const CLOAK_CLUSTER_RADIUS = 90;
+  const CLOAK_CLUSTER_MIN = 3;
+
+  // Ebola's Viral Cloak hides individual pathogens from enemy view, but a
+  // tight cluster of 3+ gives off a faint tinted haze -- just enough to hint
+  // "something is massing here" without un-hiding any one of them.
+  function drawCloakHints() {
+    const local = getLocalUnit();
+    if (!local) return;
+    const cloaked = world.units.filter(u => u.alive && u.team !== local.team && u.cloakUntil > world.time &&
+      Math.hypot(u.x - local.x, u.y - local.y) > INVIS_DETECT_RANGE);
+    if (cloaked.length < CLOAK_CLUSTER_MIN) return;
+    for (const u of cloaked) {
+      const nearby = cloaked.reduce((n, v) => n + (Math.hypot(v.x - u.x, v.y - u.y) < CLOAK_CLUSTER_RADIUS ? 1 : 0), 0);
+      if (nearby < CLOAK_CLUSTER_MIN) continue;
+      const def = getCharacter(u.charId);
+      const haze = Math.min(1, nearby / 6);
+      ctx.save();
+      ctx.translate(u.x, u.y);
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, u.radius * 2.4);
+      grad.addColorStop(0, def.color + Math.round(26 * haze).toString(16).padStart(2, '0'));
+      grad.addColorStop(1, def.color + '00');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, u.radius * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   function drawUnits() {
     const local = getLocalUnit();
     for (const u of world.units) {
@@ -1451,7 +1482,7 @@ const Game = (() => {
       const idlePhase = world.time * 2.2 + u.id * 1.7;
       ctx.scale(1 + Math.sin(idlePhase) * 0.035, 1 + Math.cos(idlePhase * 0.8) * 0.035);
       if (u.invisibleUntil > world.time || u.cloakUntil > world.time) ctx.globalAlpha = 0.45;
-      drawCharacterShape(ctx, u, def);
+      drawCharacterShape(ctx, u, def, world.time);
       if (devouring) {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
@@ -1620,6 +1651,7 @@ const Game = (() => {
       drawHazards();
       drawFx();
       drawProjectiles();
+      drawCloakHints();
       drawUnits();
       ctx.restore();
     } else {
@@ -1631,6 +1663,7 @@ const Game = (() => {
       drawHazards();
       drawFx();
       drawProjectiles();
+      drawCloakHints();
       drawUnits();
     }
 

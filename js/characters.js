@@ -4,7 +4,7 @@ const CHARACTERS = {
     color: '#4fd1ff', dark: '#1b6e86', shape: 'blob',
     radius: 22, speed: 178, maxHp: 240, regen: 0.02,
     shield: { max: 85, regenDelay: 3, regenRate: 30 },
-    blurb: 'A tanky devourer that swells up and swallows pathogens whole, agar.io-style. Contact-based and mostly automatic: it bites anything it touches, and your only real decision is when to trigger Engulf Surge. A rechargeable shield and real foot speed help it actually close the distance.',
+    blurb: 'A tanky devourer that swells up and swallows pathogens whole, agar.io-style. Contact-based and mostly automatic: it bites anything it touches, and your only real decision is when to trigger Engulf Surge. A rechargeable shield and real foot speed help it actually close the distance. The first time it touches an allied T-Cell each life, its shield capacity doubles -- once that doubled shield is depleted, it caps back at normal.',
     primary: {
       name: 'Engulf Surge', type: 'self_buff_devour', cooldown: 9,
       duration: 7, sizeMult: 3, speedMult: 1.7,
@@ -61,8 +61,8 @@ const CHARACTERS = {
     },
     secondary: {
       name: 'Rapid Healing', type: 'heal_aura', cooldown: 0.4, auto: true,
-      radius: 75, healFraction: 0.05, supportWindow: 5,
-      desc: 'Passive -- any ally that gets close is steadily healed, and one that actually touches the T-Cell is healed to full instantly. Always active, no input needed. A healed ally who kills or deals damage soon after credits the T-Cell with an assist and a cut of the damage.'
+      radius: 75, healFraction: 0.05, supportWindow: 5, touchBuffer: 22,
+      desc: 'Passive -- any ally that gets close is steadily healed, and one that gets right up against the T-Cell is healed to full instantly. Always active, no input needed. A healed ally who kills or deals damage soon after credits the T-Cell with an assist and a cut of the damage.'
     }
   },
   bacterium: {

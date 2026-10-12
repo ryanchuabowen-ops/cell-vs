@@ -167,25 +167,33 @@ function drawChain(ctx, u, def) {
   }
 }
 
-// Ebola: a looped, filamentous thread -- the real virus's signature
-// "shepherd's crook" shape, not a round cell body.
-function drawEbola(ctx, u, def) {
+// Ebola: a linear filamentous thread -- the real virus's signature shape --
+// that slinks with a gentle traveling wiggle instead of sitting frozen.
+function drawEbola(ctx, u, def, time) {
   const r = u.radius;
+  const len = r * 2.7;
+  const segments = 16;
+  const amp = r * 0.22;
+  const phase = (time || 0) * 3.2 + u.id * 2.3;
   const tracePath = () => {
     ctx.beginPath();
-    ctx.moveTo(-r * 1.35, -r * 0.5);
-    ctx.bezierCurveTo(-r * 0.25, -r * 1.25, r * 1.2, -r * 0.95, r * 1.25, -r * 0.05);
-    ctx.bezierCurveTo(r * 1.3, r * 0.75, r * 0.2, r * 1.05, -r * 0.35, r * 0.55);
-    ctx.bezierCurveTo(-r * 0.75, r * 0.2, -r * 0.45, -r * 0.15, r * 0.15, 0);
+    for (let i = 0; i <= segments; i++) {
+      const p = i / segments;
+      const x = -len / 2 + p * len;
+      // Wave travels along the body (p * freq + phase) and tapers toward
+      // both ends (sin(p*PI)) so it reads as a slinking thread, not a loop.
+      const y = Math.sin(p * Math.PI * 2.4 + phase) * amp * Math.sin(p * Math.PI);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
   };
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.strokeStyle = def.dark;
-  ctx.lineWidth = r * 0.52;
+  ctx.lineWidth = r * 0.5;
   tracePath();
   ctx.stroke();
   ctx.strokeStyle = def.color;
-  ctx.lineWidth = r * 0.34;
+  ctx.lineWidth = r * 0.32;
   tracePath();
   ctx.stroke();
 }
@@ -232,7 +240,7 @@ function drawPhageLander(ctx, u, def) {
   ctx.stroke();
 }
 
-function drawCharacterShape(ctx, u, def) {
+function drawCharacterShape(ctx, u, def, time) {
   switch (def.shape) {
     case 'blob': drawBlob(ctx, u, def); break;
     case 'multilobe': drawMultilobe(ctx, u, def); break;
@@ -243,7 +251,7 @@ function drawCharacterShape(ctx, u, def) {
     case 'phage': drawPhageLander(ctx, u, def); break;
     case 'virophage': drawSpiky(ctx, u, def, 7, u.radius * 0.4); break;
     case 'tcell': drawSpiky(ctx, u, def, 10, u.radius * 0.3); break;
-    case 'ebola': drawEbola(ctx, u, def); break;
+    case 'ebola': drawEbola(ctx, u, def, time); break;
     default: drawCellBase(ctx, u.radius, def.color, def.dark);
   }
 }
