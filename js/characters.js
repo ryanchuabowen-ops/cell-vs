@@ -171,8 +171,8 @@ CHARACTERS.bcell.secondaryOptions = [
   CHARACTERS.bcell.secondary,
   {
     name: 'IgG3 Guided Missile', type: 'guided_missile', cooldown: 9, shape: 'igg3missile',
-    speed: 760, life: 5, radius: 9, piercing: true, aoe: 55,
-    desc: 'A one-shot-kill guided antibody missile with an area-damage warhead. Takes you out of your body (invulnerable) to steer it by hand into a target -- it punches straight through walls and cover to get there. Recharges quickly.'
+    speed: 760, life: 5, radius: 9, piercing: true, aoe: 55, hitTolerance: 20,
+    desc: 'A one-shot-kill guided antibody missile with an area-damage warhead and a forgiving proximity fuse -- it detonates once it gets close to a target, no precise direct hit needed. Takes you out of your body (invulnerable) to steer it by hand into a target -- it punches straight through walls and cover to get there. Recharges quickly.'
   }
 ];
 

@@ -470,14 +470,14 @@ function useAbility(unit, slot, world) {
     case 'guided_missile': {
       if (unit.controllerType === 'local') {
         const missile = createProjectile(unit, unit.x, unit.y, unit.angle,
-          { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, piloted: true, piercing: ab.piercing, aoe: ab.aoe, color: def.color, shape: ab.shape });
+          { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, piloted: true, piercing: ab.piercing, aoe: ab.aoe, color: def.color, shape: ab.shape, hitTolerance: ab.hitTolerance });
         world.projectiles.push(missile);
         unit.pilotingId = missile.id;
         unit.invulnerable = true;
       } else {
         const target = findNearestEnemy(unit, world);
         world.projectiles.push(createProjectile(unit, unit.x, unit.y, unit.angle,
-          { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, homing: true, piercing: ab.piercing, aoe: ab.aoe, targetId: target ? target.id : null, color: def.color, shape: ab.shape }));
+          { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, homing: true, piercing: ab.piercing, aoe: ab.aoe, targetId: target ? target.id : null, color: def.color, shape: ab.shape, hitTolerance: ab.hitTolerance }));
       }
       break;
     }
