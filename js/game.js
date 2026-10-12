@@ -1000,6 +1000,34 @@ const Game = (() => {
         ctx.closePath();
         ctx.fill();
         ctx.restore();
+      } else if (f.type === 'heal_pulse' || f.type === 'recharge_pulse') {
+        // Pops up over whoever a T-Cell just healed or recharged -- the
+        // same +/bolt glyphs as the health/recharge pickups, so the payoff
+        // reads instantly as "that's what just happened to them".
+        const su = world.units.find(x => x.id === f.targetId);
+        if (su && su.alive) {
+          const bob = Math.sin(world.time * 6) * 3;
+          const scale = 0.6 + Math.min(1, t * 6) * 0.4;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 1 - t);
+          ctx.translate(su.x, su.y - su.radius - 26 + bob);
+          ctx.scale(scale, scale);
+          ctx.fillStyle = 'rgba(8,12,18,0.6)';
+          ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+          if (f.type === 'heal_pulse') {
+            ctx.strokeStyle = '#5dffa0';
+            ctx.lineWidth = 3.5;
+            ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.moveTo(0, -6); ctx.lineTo(0, 6); ctx.stroke();
+          } else {
+            ctx.fillStyle = '#ffd166';
+            ctx.beginPath();
+            ctx.moveTo(2, -7); ctx.lineTo(-4, 1.5); ctx.lineTo(0, 1.5); ctx.lineTo(-2, 7); ctx.lineTo(4, -1.5); ctx.lineTo(0, -1.5);
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.restore();
+        }
       } else if (f.type === 'summon_arrow') {
         const su = world.units.find(x => x.id === f.targetId);
         if (su && su.alive) {

@@ -545,6 +545,7 @@ function useAbility(unit, slot, world) {
         if (u.hp < u.maxHp) {
           u.hp = touching ? u.maxHp : Math.min(u.maxHp, u.hp + u.maxHp * ab.healFraction);
           supported = true;
+          world.fx.push({ type: 'heal_pulse', targetId: u.id, start: world.time, life: 0.7 });
         }
         // Macrophage's shield capacity doubles once, the first time it
         // actually touches a T-Cell. Once that doubled shield is later
@@ -574,11 +575,13 @@ function useAbility(unit, slot, world) {
         if (!u.alive || u.team !== unit.team || u.id === unit.id) continue;
         const d = Math.hypot(u.x - unit.x, u.y - unit.y);
         if (d < unit.radius + u.radius + ab.radius) {
+          const hadCooldown = u.cd.primary > 0 || u.cd.secondary > 0 || u.cd.wall > 0;
           if (u.cd.primary > 0) u.cd.primary = Math.max(0, u.cd.primary - ab.rechargeAmount);
           if (u.cd.secondary > 0) u.cd.secondary = Math.max(0, u.cd.secondary - ab.rechargeAmount);
           if (u.cd.wall > 0) u.cd.wall = Math.max(0, u.cd.wall - ab.rechargeAmount);
           u.supportedBy = unit.id;
           u.supportedUntil = world.time + ab.supportWindow;
+          if (hadCooldown) world.fx.push({ type: 'recharge_pulse', targetId: u.id, start: world.time, life: 0.7 });
         }
       }
       break;
