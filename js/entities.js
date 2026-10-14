@@ -164,8 +164,13 @@ function triggerDeathSave(target, world) {
   return true;
 }
 
-function damageUnit(target, amount, source, world, instaKill, ignoreInvis) {
-  if (!target.alive || target.invulnerable || (!ignoreInvis && target.invisibleUntil > world.time) || target.invulnerableUntil > world.time) return;
+function damageUnit(target, amount, source, world, instaKill) {
+  if (!target.alive || target.invulnerable || target.invulnerableUntil > world.time) return;
+
+  // Invisibility softens normal hits instead of blocking them outright --
+  // still dangerous to be caught, just not unkillable. Like the shield
+  // below, it doesn't reduce an instant-kill effect.
+  if (!instaKill && target.invisibleUntil > world.time && amount > 0) amount *= 0.6;
 
   // A rechargeable shield (e.g. the bacteriophage's) soaks up normal damage
   // before HP -- but can't stop an instant-kill effect, which bypasses it.

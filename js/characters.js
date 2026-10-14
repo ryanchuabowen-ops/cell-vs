@@ -175,7 +175,7 @@ const CHARACTERS = {
     blurb: 'Not a fighter -- a commander. No body on the battlefield, just a full map view that sees everyone, cloaked units included, with four powers over your own team: decloak an enemy, cloak an ally, order an ally to attack a specific target, and drag floater blocks into chokepoints.',
     primary: {
       name: 'Decloak / Order Attack', type: 'zeus', cooldown: 0,
-      desc: 'Decloak: click an enemy currently hidden by Invisibility or Cloak to strip it, exposing them -- and stripping Invisibility\'s damage immunity along with it -- to your whole team. Order Attack: click-drag from an ally to a specific enemy to force that ally to beeline for and engage that target for a while.'
+      desc: 'Decloak: click an enemy currently hidden by Invisibility or Cloak to strip it, exposing them to view and targeting for your whole team. Order Attack: click-drag from an ally to a specific enemy to force that ally to beeline for and engage that target for a while.'
     },
     secondary: {
       name: 'Cloak Ally / Move Floater', type: 'zeus', cooldown: 0,
@@ -188,7 +188,7 @@ const CHARACTERS = {
     blurb: 'Not a fighter -- a commander. No body on the battlefield, just a full map view that sees everyone, cloaked units included, with four powers over your own team: decloak an enemy, cloak an ally, order an ally to attack a specific target, and drag floater blocks into chokepoints.',
     primary: {
       name: 'Decloak / Order Attack', type: 'zeus', cooldown: 0,
-      desc: 'Decloak: click an enemy currently hidden by Invisibility or Cloak to strip it, exposing them -- and stripping Invisibility\'s damage immunity along with it -- to your whole team. Order Attack: click-drag from an ally to a specific enemy to force that ally to beeline for and engage that target for a while.'
+      desc: 'Decloak: click an enemy currently hidden by Invisibility or Cloak to strip it, exposing them to view and targeting for your whole team. Order Attack: click-drag from an ally to a specific enemy to force that ally to beeline for and engage that target for a while.'
     },
     secondary: {
       name: 'Cloak Ally / Move Floater', type: 'zeus', cooldown: 0,
@@ -250,7 +250,7 @@ CHARACTERS.coronavirus.primaryOptions = [
   {
     name: 'Invisibility', type: 'invisibility', cooldown: 16,
     duration: 9,
-    desc: 'Turns invisible and invulnerable for 9s -- hidden from enemy targeting and view beyond close range, and immune to all damage while it lasts. A pure stealth and escape tool.'
+    desc: 'Turns invisible for 9s -- hidden from enemy targeting and view beyond close range, and takes 40% less damage from normal hits while it lasts. Not full immunity, though -- an instant-kill effect that catches you still kills you.'
   }
 ];
 
@@ -286,7 +286,7 @@ CHARACTERS.ebola.secondaryOptions = [
   {
     name: 'Viral Cloak', type: 'cloak_aura', cooldown: 0.3, auto: true,
     radius: 75, duration: 6,
-    desc: 'Passive -- hides nearby allied pathogens from enemy view. Unlike Coronavirus\'s own Invisibility, it grants no immunity -- a cloaked ally stays fully targetable and can still be hit and killed as normal.'
+    desc: 'Passive -- hides nearby allied pathogens from enemy view. Visual stealth only -- a cloaked ally stays fully targetable and can still be hit and killed as normal.'
   }
 ];
 
