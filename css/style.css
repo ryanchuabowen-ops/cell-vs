@@ -251,6 +251,7 @@ button:active { transform: translateY(0); }
 #hud-bottom { display: flex; align-items: flex-end; justify-content: space-between; }
 
 #hud-hp-wrap { width: 220px; }
+#hud-hp-wrap.hidden { display: none; }
 #hud-shield-bar { background: rgba(0,0,0,0.5); border: 1px solid rgba(124,255,203,0.5); border-radius: 8px; height: 8px; overflow: hidden; margin-bottom: 3px; }
 #hud-shield-bar.hidden { display: none; }
 #hud-shield-fill { height: 100%; background: linear-gradient(90deg, #4fd1ff, var(--accent)); width: 100%; transition: width 0.1s linear; }
@@ -259,6 +260,7 @@ button:active { transform: translateY(0); }
 #hud-hp-text { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
 #hud-abilities { display: flex; gap: 10px; }
+#hud-abilities.hidden { display: none; }
 .ability-icon {
   position: relative;
   width: 58px; height: 58px;
@@ -271,6 +273,19 @@ button:active { transform: translateY(0); }
 .ability-icon span { font-size: 11px; font-weight: 700; color: var(--text); z-index: 2; }
 .ability-icon small { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; font-size: 8px; color: var(--muted); z-index: 2; }
 .cd-overlay { position: absolute; bottom: 0; left: 0; right: 0; height: 0%; background: rgba(0,0,0,0.75); z-index: 1; }
+
+/* Zeus (Dendritic Cell / Rabies): four click-to-arm command buttons instead
+   of the normal HP bar + LMB/RMB/E ability icons. */
+#zeus-hud { display: flex; gap: 10px; }
+#zeus-hud.hidden { display: none; }
+.zeus-ability { font-family: inherit; cursor: pointer; padding: 0; }
+.zeus-ability span { font-size: 9.5px; }
+.zeus-ability.armed { border-color: #7cffcb; animation: armedPulse 1.2s ease-in-out infinite; }
+.zeus-ability.armed span { color: #7cffcb; }
+@keyframes armedPulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(124,255,203,0.55), inset 0 0 6px rgba(124,255,203,0.25); }
+  50% { box-shadow: 0 0 20px rgba(124,255,203,0.95), inset 0 0 10px rgba(124,255,203,0.5); }
+}
 
 /* A locked ultimate (T-Cell's Apoptosis, Ebola's Environmental Toxin) needs
    to read as "gated", not just another grey cooldown sweep -- a bright

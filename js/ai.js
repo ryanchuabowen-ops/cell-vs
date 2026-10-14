@@ -105,11 +105,23 @@ function updateBotAI(unit, world, dt) {
     return;
   }
 
-  let enemy = findNearestEnemy(unit, world, DETECT_RANGE);
-  const human = findHumanEnemy(unit, world);
-  if (human && human.dist < PLAYER_AGGRO_RADIUS) {
-    const curDist = enemy ? Math.hypot(enemy.x - unit.x, enemy.y - unit.y) : Infinity;
-    if (!enemy || human.dist < curDist * 1.6) enemy = human.unit;
+  // A Zeus "Order Attack" forces this specific target -- overriding even the
+  // human-aggro bias below -- until it expires, the target dies, or a new
+  // order overwrites it.
+  let enemy = null;
+  let ordered = false;
+  if (unit.zeusOrderTargetId) {
+    const target = world.units.find(u => u.id === unit.zeusOrderTargetId && u.alive);
+    if (target && world.time < unit.zeusOrderUntil) { enemy = target; ordered = true; }
+    else unit.zeusOrderTargetId = null;
+  }
+  if (!ordered) {
+    enemy = findNearestEnemy(unit, world, DETECT_RANGE);
+    const human = findHumanEnemy(unit, world);
+    if (human && human.dist < PLAYER_AGGRO_RADIUS) {
+      const curDist = enemy ? Math.hypot(enemy.x - unit.x, enemy.y - unit.y) : Infinity;
+      if (!enemy || human.dist < curDist * 1.6) enemy = human.unit;
+    }
   }
 
   let moveTarget = null;

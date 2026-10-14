@@ -334,7 +334,13 @@
       buildGroupedGrid(grid, [immuneGroup(null, IMMUNE_IDS_CLASSIC), pathogenGroup(null, PATHOGEN_IDS_CLASSIC)], (card, charId) => charSelectPicker.select(card, charId), true);
     } else if (action === 'pvbot16') {
       title.textContent = 'Choose your character';
-      buildGroupedGrid(grid, [immuneGroup(), pathogenGroup()], (card, charId) => charSelectPicker.select(card, charId), true);
+      // Dendritic Cell/Rabies tack onto the end of each side's normal
+      // roster -- same grouped sections, so they only ever show up under
+      // Immune Cells / Pathogens respectively, never the opposite side.
+      buildGroupedGrid(grid, [
+        immuneGroup(null, IMMUNE_IDS.concat('dendritic')),
+        pathogenGroup(null, PATHOGEN_IDS.concat('rabies'))
+      ], (card, charId) => charSelectPicker.select(card, charId), true);
     } else if (action === 'pve') {
       // PvE is a dedicated hero-defense mode built around the two phage
       // heroes' kits -- immune/pathogen characters stay pvbot-only.
@@ -462,16 +468,23 @@
     updateRespawnPicker(world, localUnit, mode);
     renderKillFeed(killFeed);
 
+    const zeusTeam = Game.getZeusTeam();
     const board = $('hud-scoreboard');
-    const local = localUnit;
+    const refTeam = localUnit ? localUnit.team : zeusTeam;
     board.innerHTML = '<div class="scoreboard-title">Top Kills</div>' + scoreboard.map(u => {
       const def = CHARACTERS[u.charId];
-      const friendly = local && u.team === local.team;
+      const friendly = refTeam && u.team === refTeam;
       const cls = u.id === localUnitId ? 'you' : (friendly ? 'ally' : 'enemy');
       return '<div class="scoreboard-row ' + cls + '"><span class="sb-swatch" style="background:' + def.color + '"></span>' + def.name + '<b>' + u.kills + '</b></div>';
     }).join('');
 
-    if (!localUnit) return;
+    if (!localUnit) {
+      updateZeusHud(zeusTeam);
+      return;
+    }
+    $('hud-hp-wrap').classList.remove('hidden');
+    $('hud-abilities').classList.remove('hidden');
+    $('zeus-hud').classList.add('hidden');
     const primaryAb = localUnit.abilities.primary, secondaryAb = localUnit.abilities.secondary;
     $('hud-hp-fill').style.width = Math.max(0, (localUnit.hp / localUnit.maxHp) * 100) + '%';
     $('hud-hp-text').textContent = Math.ceil(Math.max(0, localUnit.hp)) + ' / ' + localUnit.maxHp + (localUnit.alive ? '' : ' — respawning...');
@@ -503,6 +516,24 @@
     pIcon.classList.toggle('bonus-charge', !!localUnit.bonusPrimaryCharge);
     $('ability-primary-name').textContent = primaryAb.name;
     $('ability-secondary-name').textContent = secondaryAb.name;
+  }
+
+  const ZEUS_BUTTON_IDS = { decloak: 'zeus-decloak', cloak: 'zeus-cloak', order: 'zeus-order', floater: 'zeus-floater' };
+  const ZEUS_COOLDOWN_MAX = { decloak: 7, cloak: 8, order: 6, floater: 6 };
+
+  function updateZeusHud(zeusTeam) {
+    $('hud-hp-wrap').classList.add('hidden');
+    $('hud-abilities').classList.add('hidden');
+    if (!zeusTeam) { $('zeus-hud').classList.add('hidden'); return; }
+    $('zeus-hud').classList.remove('hidden');
+    const armed = Game.getZeusArmed();
+    const cd = Game.getZeusCooldowns();
+    for (const key in ZEUS_BUTTON_IDS) {
+      const icon = $(ZEUS_BUTTON_IDS[key]);
+      icon.classList.toggle('armed', armed === key);
+      const overlay = icon.querySelector('.cd-overlay');
+      overlay.style.height = Math.max(0, Math.min(100, (cd[key] / ZEUS_COOLDOWN_MAX[key]) * 100)) + '%';
+    }
   }
 
   function updateRespawnPicker(world, localUnit, mode) {
@@ -666,6 +697,9 @@
     });
     $('charselect-confirm').addEventListener('click', onConfirmCharSelect);
     $('respawn-confirm').addEventListener('click', onConfirmRespawn);
+    for (const key in ZEUS_BUTTON_IDS) {
+      $(ZEUS_BUTTON_IDS[key]).addEventListener('click', () => Game.setZeusArmed(key));
+    }
   }
 
   function init() {

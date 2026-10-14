@@ -164,6 +164,36 @@ const CHARACTERS = {
       count: 3, spacing: 16, speed: 480, damage: 7, life: 1.0, radius: 4,
       desc: 'Three parallel, linear streams of viral capsid fragments fired straight ahead -- precise parallel lanes, not a spread. Unlimited ammo.'
     }
+  },
+  // Zeus roles: not a body on the battlefield at all -- a free commander
+  // view over the whole map with four point-and-click powers. Their
+  // primary/secondary here exist only so the character-select screen has
+  // something to show; actual Zeus gameplay never reads unit.abilities.
+  dendritic: {
+    id: 'dendritic', name: 'Dendritic Cell', side: 'immune',
+    color: '#c7ff4f', dark: '#5c7a1b', shape: 'blob', radius: 18, speed: 0, maxHp: 1,
+    blurb: 'Not a fighter -- a commander. No body on the battlefield, just a full map view that sees everyone, cloaked units included, with four powers over your own team: decloak an enemy, cloak an ally, order an ally to attack a specific target, and drag floater blocks into chokepoints.',
+    primary: {
+      name: 'Decloak / Order Attack', type: 'zeus', cooldown: 0,
+      desc: 'Decloak: click an enemy currently hidden by Invisibility or Cloak to strip it, exposing them -- and stripping Invisibility\'s damage immunity along with it -- to your whole team. Order Attack: click-drag from an ally to a specific enemy to force that ally to beeline for and engage that target for a while.'
+    },
+    secondary: {
+      name: 'Cloak Ally / Move Floater', type: 'zeus', cooldown: 0,
+      desc: 'Cloak Ally: click a teammate to hide them from enemy view the same way Ebola\'s Viral Cloak does -- no damage immunity, just visual stealth. Move Floater: click-drag a drifting obstacle block to a new spot, where it stays put instead of drifting off again.'
+    }
+  },
+  rabies: {
+    id: 'rabies', name: 'Rabies', side: 'pathogen',
+    color: '#ff4f8f', dark: '#7a1b45', shape: 'chain', radius: 18, speed: 0, maxHp: 1,
+    blurb: 'Not a fighter -- a commander. No body on the battlefield, just a full map view that sees everyone, cloaked units included, with four powers over your own team: decloak an enemy, cloak an ally, order an ally to attack a specific target, and drag floater blocks into chokepoints.',
+    primary: {
+      name: 'Decloak / Order Attack', type: 'zeus', cooldown: 0,
+      desc: 'Decloak: click an enemy currently hidden by Invisibility or Cloak to strip it, exposing them -- and stripping Invisibility\'s damage immunity along with it -- to your whole team. Order Attack: click-drag from an ally to a specific enemy to force that ally to beeline for and engage that target for a while.'
+    },
+    secondary: {
+      name: 'Cloak Ally / Move Floater', type: 'zeus', cooldown: 0,
+      desc: 'Cloak Ally: click a teammate to hide them from enemy view the same way Ebola\'s Viral Cloak does -- no damage immunity, just visual stealth. Move Floater: click-drag a drifting obstacle block to a new spot, where it stays put instead of drifting off again.'
+    }
   }
 };
 
@@ -174,6 +204,9 @@ const PHAGE_IDS = ['phage', 'virophage'];
 // around for PvBot's "10 v 10 Classic" mode.
 const IMMUNE_IDS_CLASSIC = ['macrophage', 'neutrophil', 'bcell'];
 const PATHOGEN_IDS_CLASSIC = ['bacterium', 'coronavirus', 'strepA'];
+// Zeus commander picks -- never added to the bot-fill pools above, only
+// offered as extra character-select cards in PvBot 16v16.
+const ZEUS_IDS = { dendritic: 'immune', rabies: 'pathogen' };
 
 // Neutrophil and Plasma/B-Cell each have two options per slot -- picked at
 // the character-select screen rather than fixed.

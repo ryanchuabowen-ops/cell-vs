@@ -45,6 +45,8 @@ function createUnit(charId, team, controllerType, loadout) {
     ultimateUsed: false,
     bonusPrimaryCharge: false,
     bonusPrimaryChargeUntil: 0,
+    zeusOrderTargetId: null,
+    zeusOrderUntil: 0,
     summonedBy: null,
     expiresAt: 0,
     volley: null,

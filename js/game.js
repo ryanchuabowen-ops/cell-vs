@@ -125,6 +125,18 @@ const Game = (() => {
   let playerStats = { kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0, weaponKills: {}, flagCaptures: 0 };
   let listenersBound = false;
 
+  // Zeus (Dendritic Cell / Rabies): a commander role with no body on the
+  // battlefield -- a free full-map view and four point-and-click powers
+  // over its own team instead of a unit to move and fight with.
+  let zeusTeam = null; // 'immune' | 'pathogen' | null
+  let zeusArmed = null; // 'decloak' | 'cloak' | 'order' | 'floater' | null
+  let zeusCd = { decloak: 0, cloak: 0, order: 0, floater: 0 };
+  let zeusOrderFrom = null; // unit mid-drag for Order Attack
+  let zeusDragFloater = null; // floater object mid-drag for Move Floater
+  let zeusDragPos = null; // current world-space mouse position while dragging
+  let zeusZoom = 1;
+  const ZEUS_COOLDOWNS = { decloak: 7, cloak: 8, order: 6, floater: 6 };
+
   function init(canvasEl) {
     canvas = canvasEl;
     ctx = canvas.getContext('2d');
@@ -139,10 +151,19 @@ const Game = (() => {
     });
     canvas.addEventListener('mousedown', e => {
       e.preventDefault();
+      if (zeusTeam) {
+        if (e.button === 0) handleZeusMouseDown();
+        if (e.button === 2) { zeusArmed = null; zeusOrderFrom = null; zeusDragFloater = null; }
+        return;
+      }
       if (e.button === 0) localInputState.secondary = true;
       if (e.button === 2) localInputState.primary = true;
     });
     window.addEventListener('mouseup', e => {
+      if (zeusTeam) {
+        if (e.button === 0) handleZeusMouseUp();
+        return;
+      }
       if (e.button === 0) localInputState.secondary = false;
       if (e.button === 2) localInputState.primary = false;
     });
@@ -274,6 +295,7 @@ const Game = (() => {
     u.spinAccum = 0;
     u.dizzyUntil = 0;
     u.bonusPrimaryCharge = false;
+    u.zeusOrderTargetId = null;
     placeAtSpawn(u, w);
   }
 
@@ -454,6 +476,130 @@ const Game = (() => {
     }
   }
 
+  // ---------- Zeus (Dendritic Cell / Rabies) ----------
+  function screenToWorldZeus(sx, sy) {
+    return { x: camera.x + (sx - canvas.width / 2) / zeusZoom, y: camera.y + (sy - canvas.height / 2) / zeusZoom };
+  }
+
+  function findUnitNearWorld(wx, wy, maxDist) {
+    let best = null, bestD = maxDist;
+    for (const u of world.units) {
+      if (!u.alive) continue;
+      const d = Math.hypot(u.x - wx, u.y - wy);
+      if (d < bestD) { bestD = d; best = u; }
+    }
+    return best;
+  }
+
+  function findFloaterNearWorld(wx, wy) {
+    for (const f of world.floaters) {
+      if (wx >= f.x && wx <= f.x + f.w && wy >= f.y && wy <= f.y + f.h) return f;
+    }
+    return null;
+  }
+
+  function zeusDecloak(target) {
+    if (zeusCd.decloak > 0 || !target || !target.alive || target.team === zeusTeam) return false;
+    if (!(target.cloakUntil > world.time || target.invisibleUntil > world.time)) return false;
+    target.cloakUntil = 0;
+    target.invisibleUntil = 0;
+    zeusCd.decloak = ZEUS_COOLDOWNS.decloak;
+    return true;
+  }
+
+  function zeusCloak(target) {
+    if (zeusCd.cloak > 0 || !target || !target.alive || target.team !== zeusTeam) return false;
+    target.cloakUntil = world.time + 7;
+    zeusCd.cloak = ZEUS_COOLDOWNS.cloak;
+    return true;
+  }
+
+  function zeusOrder(from, to) {
+    if (zeusCd.order > 0 || !from || !from.alive || from.team !== zeusTeam) return false;
+    if (!to || !to.alive || to.team === zeusTeam) return false;
+    from.zeusOrderTargetId = to.id;
+    from.zeusOrderUntil = world.time + 10;
+    zeusCd.order = ZEUS_COOLDOWNS.order;
+    return true;
+  }
+
+  // The click-tolerance is defined in screen pixels (divided by zoom) so it
+  // stays comfortably clickable at any zoom level, not a fixed world-space
+  // radius that would shrink to a few screen pixels when zoomed far out.
+  function zeusClickTolerance() { return 26 / zeusZoom; }
+
+  function handleZeusMouseDown() {
+    const wp = screenToWorldZeus(mouseScreen.x, mouseScreen.y);
+    const tol = zeusClickTolerance();
+    if (zeusArmed === 'decloak') {
+      if (zeusDecloak(findUnitNearWorld(wp.x, wp.y, tol))) zeusArmed = null;
+    } else if (zeusArmed === 'cloak') {
+      if (zeusCloak(findUnitNearWorld(wp.x, wp.y, tol))) zeusArmed = null;
+    } else if (zeusArmed === 'order') {
+      if (zeusCd.order <= 0) {
+        const u = findUnitNearWorld(wp.x, wp.y, tol);
+        if (u && u.alive && u.team === zeusTeam) { zeusOrderFrom = u; zeusDragPos = wp; }
+      }
+    } else if (zeusArmed === 'floater') {
+      if (zeusCd.floater <= 0) {
+        const f = findFloaterNearWorld(wp.x, wp.y);
+        if (f) { zeusDragFloater = f; f.vx = 0; f.vy = 0; zeusDragPos = wp; }
+      }
+    }
+  }
+
+  function handleZeusMouseUp() {
+    const wp = screenToWorldZeus(mouseScreen.x, mouseScreen.y);
+    const tol = zeusClickTolerance();
+    if (zeusOrderFrom) {
+      const target = findUnitNearWorld(wp.x, wp.y, tol);
+      if (zeusOrder(zeusOrderFrom, target)) zeusArmed = null;
+      zeusOrderFrom = null;
+      zeusDragPos = null;
+    }
+    if (zeusDragFloater) {
+      zeusDragFloater = null;
+      zeusDragPos = null;
+      zeusCd.floater = ZEUS_COOLDOWNS.floater;
+      zeusArmed = null;
+    }
+  }
+
+  function updateZeus(dt) {
+    if (zeusCd.decloak > 0) zeusCd.decloak = Math.max(0, zeusCd.decloak - dt);
+    if (zeusCd.cloak > 0) zeusCd.cloak = Math.max(0, zeusCd.cloak - dt);
+    if (zeusCd.order > 0) zeusCd.order = Math.max(0, zeusCd.order - dt);
+    if (zeusCd.floater > 0) zeusCd.floater = Math.max(0, zeusCd.floater - dt);
+    if (zeusOrderFrom || zeusDragFloater) zeusDragPos = screenToWorldZeus(mouseScreen.x, mouseScreen.y);
+    if (zeusDragFloater) {
+      const f = zeusDragFloater;
+      f.x = clamp(zeusDragPos.x - f.w / 2, 0, WORLD_W - f.w);
+      f.y = clamp(zeusDragPos.y - f.h / 2, 0, WORLD_H - f.h);
+    }
+  }
+
+  function drawZeusOverlay() {
+    if (zeusOrderFrom && zeusDragPos) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,224,102,0.85)';
+      ctx.lineWidth = 2.5 / zeusZoom;
+      ctx.setLineDash([10 / zeusZoom, 6 / zeusZoom]);
+      ctx.beginPath();
+      ctx.moveTo(zeusOrderFrom.x, zeusOrderFrom.y);
+      ctx.lineTo(zeusDragPos.x, zeusDragPos.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (zeusDragFloater) {
+      const f = zeusDragFloater;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(124,255,203,0.9)';
+      ctx.lineWidth = 2.5 / zeusZoom;
+      ctx.strokeRect(f.x, f.y, f.w, f.h);
+      ctx.restore();
+    }
+  }
+
   function stepSimulation(dt) {
     updateFloaters(world, dt);
     updateFloatyPickups(dt);
@@ -630,6 +776,13 @@ const Game = (() => {
     matchOver = false;
     matchResult = null;
     playerStats = { kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0, weaponKills: {}, flagCaptures: 0 };
+    localUnitId = null;
+    zeusTeam = null;
+    zeusArmed = null;
+    zeusCd = { decloak: 0, cloak: 0, order: 0, floater: 0 };
+    zeusOrderFrom = null;
+    zeusDragFloater = null;
+    zeusDragPos = null;
   }
 
   // ---------- Mode setup ----------
@@ -646,13 +799,25 @@ const Game = (() => {
     const immunePool = classic ? IMMUNE_IDS_CLASSIC : IMMUNE_IDS;
     const pathogenPool = classic ? PATHOGEN_IDS_CLASSIC : PATHOGEN_IDS;
     const teamSize = classic ? 10 : 16;
-    const side = getCharacter(charId).side;
-    const local = createUnit(charId, side, 'local', loadout);
-    placeAtSpawn(local, world);
-    world.units.push(local);
-    localUnitId = local.id;
-    fillBotTeam(world, 'immune', (side === 'immune' ? teamSize - 1 : teamSize), immunePool);
-    fillBotTeam(world, 'pathogen', (side === 'pathogen' ? teamSize - 1 : teamSize), pathogenPool);
+    const isZeus = charId in ZEUS_IDS;
+    if (isZeus) {
+      // No unit, no spawn -- Zeus is a free commander view, not a body on
+      // the map. Leaving localUnitId null is what makes getLocalUnit()
+      // return nothing, which already makes render()/drawUnits() take their
+      // existing "no local unit" paths: full map, no fog of war, every unit
+      // (cloaked ones included) drawn at full opacity.
+      zeusTeam = ZEUS_IDS[charId];
+      fillBotTeam(world, 'immune', teamSize, immunePool);
+      fillBotTeam(world, 'pathogen', teamSize, pathogenPool);
+    } else {
+      const side = getCharacter(charId).side;
+      const local = createUnit(charId, side, 'local', loadout);
+      placeAtSpawn(local, world);
+      world.units.push(local);
+      localUnitId = local.id;
+      fillBotTeam(world, 'immune', (side === 'immune' ? teamSize - 1 : teamSize), immunePool);
+      fillBotTeam(world, 'pathogen', (side === 'pathogen' ? teamSize - 1 : teamSize), pathogenPool);
+    }
     startLoop();
   }
 
@@ -720,6 +885,9 @@ const Game = (() => {
       if (missile) { camera.x = missile.x; camera.y = missile.y; }
     } else if (u) {
       camera.x = u.x; camera.y = u.y;
+    } else if (zeusTeam) {
+      camera.x = WORLD_W / 2; camera.y = WORLD_H / 2;
+      updateZeus(dt);
     }
 
     render();
@@ -1757,7 +1925,16 @@ const Game = (() => {
     ctx.save();
     ctx.fillStyle = '#03050a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.translate(canvas.width / 2 - camera.x, canvas.height / 2 - camera.y);
+    if (zeusTeam) {
+      // Zeus gets the whole map at once, scaled to fit, instead of the
+      // normal 1:1 camera -- no panning, no fog of war (the "else" branch
+      // below already renders unclipped whenever there's no local unit).
+      zeusZoom = Math.min(canvas.width / WORLD_W, canvas.height / WORLD_H) * 0.94;
+      ctx.setTransform(zeusZoom, 0, 0, zeusZoom, canvas.width / 2 - zeusZoom * camera.x, canvas.height / 2 - zeusZoom * camera.y);
+    } else {
+      zeusZoom = 1;
+      ctx.translate(canvas.width / 2 - camera.x, canvas.height / 2 - camera.y);
+    }
 
     drawMapBase();
 
@@ -1791,6 +1968,7 @@ const Game = (() => {
       drawProjectiles();
       drawCloakHints();
       drawUnits();
+      if (zeusTeam) drawZeusOverlay();
     }
 
     ctx.restore();
@@ -1820,6 +1998,17 @@ const Game = (() => {
     init, setupPvBot, setupPvEOffline, respawnAs,
     getLocalUnit, stopLoop,
     getMode: () => mode,
-    setSpawnChoice, getSpawnOptions
+    setSpawnChoice, getSpawnOptions,
+    getZeusTeam: () => zeusTeam,
+    getZeusCooldowns: () => zeusCd,
+    getZeusArmed: () => zeusArmed,
+    setZeusArmed: (name) => {
+      // Picking a new ability cancels whatever drag was in progress under
+      // the old one, so there's never a stale half-issued order/floater-grab
+      // left dangling.
+      zeusOrderFrom = null;
+      zeusDragFloater = null;
+      zeusArmed = (zeusArmed === name) ? null : name;
+    }
   };
 })();
