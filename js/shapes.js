@@ -151,6 +151,28 @@ function drawSpiky(ctx, u, def, spikeCount, spikeLen) {
   drawCellBase(ctx, r, def.color, def.dark);
 }
 
+// T-Cell: a lymphocyte's textbook look -- a large, centered nucleus filling
+// most of the body with just a thin rim of cytoplasm around it. Deliberately
+// round and calm with no radiating spikes, so it never reads as a
+// Coronavirus at a glance despite both being roughly circular.
+function drawTCell(ctx, u, def) {
+  const r = u.radius;
+  drawCellBase(ctx, r, def.color, def.dark);
+  ctx.fillStyle = def.dark;
+  ctx.globalAlpha = 0.92;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = def.color;
+  ctx.globalAlpha = 0.5;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
 // Strep A: a short chain of cocci, true to its "chain of spheres" name.
 function drawChain(ctx, u, def) {
   const r = u.radius * 0.62;
@@ -250,7 +272,7 @@ function drawCharacterShape(ctx, u, def, time) {
     case 'chain': drawChain(ctx, u, def); break;
     case 'phage': drawPhageLander(ctx, u, def); break;
     case 'virophage': drawSpiky(ctx, u, def, 7, u.radius * 0.4); break;
-    case 'tcell': drawSpiky(ctx, u, def, 10, u.radius * 0.3); break;
+    case 'tcell': drawTCell(ctx, u, def); break;
     case 'ebola': drawEbola(ctx, u, def, time); break;
     default: drawCellBase(ctx, u.radius, def.color, def.dark);
   }
