@@ -231,17 +231,17 @@ CHARACTERS.bcell.primaryOptions = [
   CHARACTERS.bcell.primary,
   {
     name: 'IgG1 Artillery', type: 'artillery_volley', cooldown: 9, shape: 'antibody',
-    volleyCount: 20, volleyInterval: 0.12, spread: 0.1,
+    volleyCount: 20, volleyInterval: 0.12, spread: 0.1, piercing: true,
     speed: 360, damage: 16, life: 8, radius: 6, aoe: 42,
-    desc: 'BM-21 Grad-style rocket artillery -- unleashes an extended wave of 20 explosive antibody rockets down-range over a couple of seconds. Each rocket flies until it hits a wall or an enemy, not a fixed range. Recharges faster than Antibody Barrage, making it the more sustainable offensive option.'
+    desc: 'BM-21 Grad-style rocket artillery -- unleashes an extended wave of 20 explosive antibody rockets down-range over a couple of seconds. Each rocket punches straight through walls and cover, flying until it hits an enemy or runs out of range. Recharges faster than Antibody Barrage, making it the more sustainable offensive option.'
   }
 ];
 CHARACTERS.bcell.secondaryOptions = [
   CHARACTERS.bcell.secondary,
   {
     name: 'IgG3 Guided Missile', type: 'guided_missile', cooldown: 9, shape: 'igg3missile',
-    speed: 760, life: 5, radius: 9, piercing: true, aoe: 55, hitTolerance: 20,
-    desc: 'A one-shot-kill guided antibody missile with an area-damage warhead and a forgiving proximity fuse -- it detonates once it gets close to a target, no precise direct hit needed. Takes you out of your body (invulnerable) to steer it by hand into a target -- it punches straight through walls and cover to get there. Recharges quickly.'
+    speed: 760, life: 5, radius: 9, piercing: true, aoe: 70, hitTolerance: 20,
+    desc: 'A one-shot-kill guided antibody missile with a wide area-damage warhead and a forgiving proximity fuse -- it detonates once it gets close to a target, no precise direct hit needed. Takes you out of your body (invulnerable) to steer it by hand into a target -- it punches straight through walls and cover to get there. Recharges quickly.'
   }
 ];
 

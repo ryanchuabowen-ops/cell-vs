@@ -688,7 +688,7 @@ function fireVolleyShot(unit, ab, world) {
   const def = getCharacter(unit.charId);
   const a = unit.angle + (Math.random() - 0.5) * (ab.spread || 0);
   world.projectiles.push(createProjectile(unit, unit.x + Math.cos(a) * (unit.radius + 4), unit.y + Math.sin(a) * (unit.radius + 4), a,
-    { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, aoe: ab.aoe, color: def.color, shape: ab.shape }));
+    { speed: ab.speed, damage: ab.damage, life: ab.life, radius: ab.radius, aoe: ab.aoe, piercing: ab.piercing, color: def.color, shape: ab.shape }));
 }
 
 function updateUnit(unit, world, dt) {
