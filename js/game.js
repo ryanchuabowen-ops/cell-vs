@@ -147,11 +147,19 @@ const Game = (() => {
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('keydown', e => { keys[e.code] = true; });
     window.addEventListener('keyup', e => { keys[e.code] = false; });
-    window.addEventListener('blur', () => {
+    // A keyup can get dropped by the OS/browser (alt-tab mid-press, a
+    // window/tab switch, key-rollover limits on some keyboards) and leave a
+    // movement key stuck "held" forever, making the unit drift on its own
+    // until the player happens to tap that exact key again. Clearing all key
+    // state on every blur/focus/visibility change is the standard fix.
+    const clearKeys = () => {
       for (const k in keys) keys[k] = false;
       localInputState.primary = false;
       localInputState.secondary = false;
-    });
+    };
+    window.addEventListener('blur', clearKeys);
+    window.addEventListener('focus', clearKeys);
+    document.addEventListener('visibilitychange', clearKeys);
   }
 
   function resize() {
@@ -1001,31 +1009,19 @@ const Game = (() => {
         ctx.fill();
         ctx.restore();
       } else if (f.type === 'heal_pulse' || f.type === 'recharge_pulse') {
-        // Pops up over whoever a T-Cell just healed or recharged -- the
-        // same +/bolt glyphs as the health/recharge pickups, so the payoff
-        // reads instantly as "that's what just happened to them".
+        // A ring that spreads out from whoever a T-Cell just healed or
+        // recharged, starting right at their own edge and fading out as it
+        // grows -- tracks the unit so it still reads right if they're moving.
         const su = world.units.find(x => x.id === f.targetId);
         if (su && su.alive) {
-          const bob = Math.sin(world.time * 6) * 3;
-          const scale = 0.6 + Math.min(1, t * 6) * 0.4;
+          const color = f.type === 'heal_pulse' ? '#5dffa0' : '#ffd166';
           ctx.save();
           ctx.globalAlpha = Math.max(0, 1 - t);
-          ctx.translate(su.x, su.y - su.radius - 26 + bob);
-          ctx.scale(scale, scale);
-          ctx.fillStyle = 'rgba(8,12,18,0.6)';
-          ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
-          if (f.type === 'heal_pulse') {
-            ctx.strokeStyle = '#5dffa0';
-            ctx.lineWidth = 3.5;
-            ctx.lineCap = 'round';
-            ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.moveTo(0, -6); ctx.lineTo(0, 6); ctx.stroke();
-          } else {
-            ctx.fillStyle = '#ffd166';
-            ctx.beginPath();
-            ctx.moveTo(2, -7); ctx.lineTo(-4, 1.5); ctx.lineTo(0, 1.5); ctx.lineTo(-2, 7); ctx.lineTo(4, -1.5); ctx.lineTo(0, -1.5);
-            ctx.closePath();
-            ctx.fill();
-          }
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(su.x, su.y, su.radius + t * su.radius * 2, 0, Math.PI * 2);
+          ctx.stroke();
           ctx.restore();
         }
       } else if (f.type === 'summon_arrow') {

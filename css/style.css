@@ -115,7 +115,11 @@ button:active { transform: translateY(0); }
   margin: 16px 0;
 }
 .char-grid.small { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-.char-grid.compact { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+/* Flex instead of a fixed column count so every card lands in a single row
+   no matter how many there are (4 per pvbot team, 2 phage heroes in PvE)
+   instead of a fixed 3-wide grid wrapping extras onto their own row. */
+.char-grid.compact { display: flex; gap: 8px; }
+.char-grid.compact .char-card { flex: 1 1 0; min-width: 0; }
 
 .char-card {
   border: 2px solid var(--panel-border);
@@ -190,9 +194,6 @@ button:active { transform: translateY(0); }
 #screen-charselect .panel h2 { margin-bottom: 10px; font-size: 20px; }
 #charselect-grid .char-card.compact { padding: 6px; }
 #charselect-grid .char-swatch-canvas { width: 32px; height: 32px; margin-bottom: 2px; }
-/* Each team's roster lines up single file (all 4 in one row) instead of
-   wrapping 3-across with a lone 4th card stranded on its own row below. */
-#charselect-grid .char-grid.compact { grid-template-columns: repeat(4, 1fr); }
 .char-group-title.immune-title { color: var(--immune); }
 .char-group-title.pathogen-title { color: var(--pathogen); }
 .char-group-title.phage-title { color: var(--accent); }
