@@ -53,11 +53,11 @@ const CHARACTERS = {
     id: 'tcell', name: 'T Cell', side: 'immune',
     color: '#ff8f6b', dark: '#8a3a1f', shape: 'tcell',
     radius: 17, speed: 190, maxHp: 115, regen: 0.03,
-    blurb: 'Pure support specialist -- no general-purpose weapon of its own, just a passive aura that heals or recharges whoever it sticks close to, and an area reveal/poison tool that unlocks once your team is halfway to winning. Self-sustains with its own regen, so it never has to retreat to spawn to keep healing others.',
+    blurb: 'Pure support specialist -- no general-purpose weapon of its own, just a passive aura that heals or recharges whoever it sticks close to, and a large area-denial poison zone that unlocks once your team is halfway to winning. Self-sustains with its own regen, so it never has to retreat to spawn to keep healing others.',
     primary: {
-      name: 'Apoptosis', type: 'reveal_poison', cooldown: 16, shape: 'cloud',
-      range: 250, radius: 130, hazardLife: 5, killCap: Infinity, tickDamage: 9, tickInterval: 0.5,
-      desc: 'Locked out until your team has racked up half the kills needed to win. Creates a zone that reveals any cloaked or invisible enemy caught inside -- Coronavirus\'s own Invisibility included -- and poisons them right through that stealth. A damage-over-time area tool, not a quick kill: a long recharge keeps it from becoming a free kill every few seconds.'
+      name: 'Apoptosis', type: 'poison_zone', cooldown: 16, shape: 'cloud',
+      range: 280, radius: 190, hazardLife: 6, killCap: Infinity, tickDamage: 9, tickInterval: 0.5,
+      desc: 'Locked out until your team has racked up half the kills needed to win. Drops a large, irregularly-shaped poison zone big enough to deny an entire entrance or chokepoint. A damage-over-time area tool, not a quick kill: a long recharge keeps it from becoming a free kill every few seconds.'
     },
     secondary: {
       name: 'Rapid Healing', type: 'heal_aura', cooldown: 0.33, auto: true,
@@ -122,8 +122,8 @@ const CHARACTERS = {
     blurb: 'Pure support specialist -- no general-purpose weapon of its own, just a passive aura that shields or cloaks nearby pathogens, and a single-use ultimate that permanently poisons part of the map once the team is halfway to victory. Self-sustains with its own regen, so it never has to retreat to spawn to keep supporting others.',
     primary: {
       name: 'Environmental Toxin', type: 'permanent_poison', cooldown: 1, shape: 'cloud',
-      range: 220, radius: 150, hazardLife: Infinity, killCap: Infinity, tickDamage: 11, tickInterval: 0.5,
-      desc: 'A one-time ultimate -- locked out entirely until the team has racked up half the kills needed to win, and gone for good the instant it is used. Permanently poisons a large area of the map; any enemy standing inside it takes steady damage for the rest of the match.'
+      range: 250, radius: 210, hazardLife: Infinity, killCap: Infinity, tickDamage: 11, tickInterval: 0.5,
+      desc: 'A one-time ultimate -- locked out entirely until the team has racked up half the kills needed to win, and gone for good the instant it is used. Permanently poisons a large, irregularly-shaped area big enough to deny an entire entrance or chokepoint for the rest of the match.'
     },
     secondary: {
       name: 'Shielding', type: 'shield_aura', cooldown: 0.3, auto: true,
@@ -239,8 +239,8 @@ CHARACTERS.tcell.secondaryOptions = [
   CHARACTERS.tcell.secondary,
   {
     name: 'Rapid Recharge', type: 'recharge_aura', cooldown: 0.33, auto: true,
-    radius: 75, rechargeAmount: 0.6, supportWindow: 5,
-    desc: 'Passive -- speeds up nearby allies\' ability cooldowns. An ally you recharge who lands a kill credits you with an assist, and 60% of any damage they deal while recharged counts toward your own damage total too.'
+    radius: 75, rechargeAmount: 0.6, supportWindow: 5, bonusChargeWindow: 12,
+    desc: 'Passive -- speeds up nearby allies\' ability cooldowns. An ally whose RMB is already fully charged instead banks one free extra use of it, with no cooldown, for a little while -- e.g. a Macrophage could Engulf Surge, let it lapse, then Engulf Surge again right away. An ally you recharge who lands a kill credits you with an assist, and 60% of any damage they deal while recharged counts toward your own damage total too.'
   }
 ];
 

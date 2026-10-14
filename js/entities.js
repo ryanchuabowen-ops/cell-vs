@@ -43,6 +43,8 @@ function createUnit(charId, team, controllerType, loadout) {
     supportedBy: null,
     supportedUntil: 0,
     ultimateUsed: false,
+    bonusPrimaryCharge: false,
+    bonusPrimaryChargeUntil: 0,
     summonedBy: null,
     expiresAt: 0,
     volley: null,
@@ -316,7 +318,16 @@ function useAbility(unit, slot, world) {
   if (ab.type === 'endospore_escape') return;
   // Lyse manages its own cooldown -- it only goes on cooldown once all of
   // its charges are spent, not after every individual dash.
-  if (ab.type !== 'charge_lyse') unit.cd[slot] = ab.cooldown;
+  if (ab.type !== 'charge_lyse') {
+    // A banked T-Cell bonus charge waives the cooldown for this one
+    // activation instead of the ability's normal recharge time.
+    if (slot === 'primary' && unit.bonusPrimaryCharge) {
+      unit.bonusPrimaryCharge = false;
+      unit.cd[slot] = 0;
+    } else {
+      unit.cd[slot] = ab.cooldown;
+    }
+  }
   unit.lastAbilityShape = ab.shape || defaultShapeForType(ab.type);
 
   switch (ab.type) {
@@ -514,13 +525,13 @@ function useAbility(unit, slot, world) {
       break;
     }
     // T-Cell's Apoptosis: locked until the immune team is halfway to
-    // winning (see abilityLocked), then drops a zone that reveals any
-    // cloaked/invisible enemy caught inside (Coronavirus's own Invisibility
-    // included) and poisons them right through that stealth.
-    case 'reveal_poison': {
+    // winning (see abilityLocked), then drops a large, irregularly-shaped
+    // poison zone -- a plain area-denial tool, same hazard type (and the
+    // same flexing non-circular hitbox) as any other poison cloud.
+    case 'poison_zone': {
       const hx = clamp(unit.x + Math.cos(unit.angle) * ab.range, 20, WORLD_W - 20);
       const hy = clamp(unit.y + Math.sin(unit.angle) * ab.range, 20, WORLD_H - 20);
-      world.hazards.push(createHazard(unit, 'reveal', hx, hy, ab));
+      world.hazards.push(createHazard(unit, 'cloud', hx, hy, ab));
       break;
     }
     // T-Cell's Rapid Healing: a passive aura, re-triggered automatically
@@ -576,7 +587,18 @@ function useAbility(unit, slot, world) {
           if (u.cd.wall > 0) u.cd.wall = Math.max(0, u.cd.wall - ab.rechargeAmount);
           u.supportedBy = unit.id;
           u.supportedUntil = world.time + ab.supportWindow;
-          if (hadCooldown) world.fx.push({ type: 'recharge_pulse', targetId: u.id, start: world.time, life: 0.7 });
+          let pulsed = hadCooldown;
+          // An ally whose RMB is already fully charged banks one free extra
+          // use instead -- e.g. a Macrophage can Engulf Surge, let it lapse,
+          // then Engulf Surge again right away, courtesy of the recharge.
+          // Lyse manages its own charge count already, so it's left alone.
+          if (u.cd.primary <= 0 && u.abilities.primary.type !== 'charge_lyse' &&
+              !abilityLocked(u, u.abilities.primary, world) && !u.bonusPrimaryCharge) {
+            u.bonusPrimaryCharge = true;
+            u.bonusPrimaryChargeUntil = world.time + (ab.bonusChargeWindow || 12);
+            pulsed = true;
+          }
+          if (pulsed) world.fx.push({ type: 'recharge_pulse', targetId: u.id, start: world.time, life: 0.7 });
         }
       }
       break;
@@ -673,6 +695,11 @@ function updateUnit(unit, world, dt) {
     unit.shield = 0;
     unit.maxShield = def.shield ? def.shield.max : 0;
     unit.tempShieldUntil = 0;
+  }
+
+  // A banked T-Cell bonus charge expires if it just sits unused too long.
+  if (unit.bonusPrimaryCharge && world.time > unit.bonusPrimaryChargeUntil) {
+    unit.bonusPrimaryCharge = false;
   }
 
   // Macrophage's shield capacity doubles once (a one-time life-of-the-spawn
@@ -813,7 +840,7 @@ function abilityLocked(unit, ab, world) {
   // T-Cell's Apoptosis: locked out until the immune team has racked up half
   // the kills needed to win -- unlike Ebola's ultimate, it stays usable
   // (on its normal cooldown) once unlocked rather than being single-use.
-  if (ab.type === 'reveal_poison') {
+  if (ab.type === 'poison_zone') {
     return !world.scores || world.scores.immune < WIN_SCORE / 2;
   }
   return false;
@@ -1017,19 +1044,23 @@ function updateHazard(hz, world, dt) {
       inside = Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius;
     } else if (hz.type === 'trail' && hz.points.length > 1) {
       inside = distToPolyline(u.x, u.y, hz.points) < 16 + u.radius;
-    } else if (hz.type === 'cloud' || hz.type === 'reveal') {
-      inside = Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius;
+    } else if (hz.type === 'cloud') {
+      // The hit boundary flexes the same irregular, non-circular shape the
+      // cloud is drawn with (see drawHazards), so a big poison zone (T-Cell's
+      // Apoptosis, Ebola's ultimate) actually denies the lumpy area it looks
+      // like it covers instead of hiding a plain circle under the art.
+      const ang = Math.atan2(u.y - hz.y, u.x - hz.x);
+      const flexR = flexRadiusAt(hz.radius, ang, hz.id * 0.77, world.time * 0.6);
+      inside = Math.hypot(u.x - hz.x, u.y - hz.y) < flexR + u.radius;
     }
     if (inside) {
       // The poison cloud damages but doesn't slow -- it relies on blocking
       // vision and being a no-go zone, not on rooting anyone in place.
-      if (hz.type !== 'cloud' && hz.type !== 'reveal') u.slowFactor = Math.max(u.slowFactor || 0, hz.slow);
+      if (hz.type !== 'cloud') u.slowFactor = Math.max(u.slowFactor || 0, hz.slow);
       if (shouldTick) {
         const owner = world.units.find(x => x.id === hz.ownerId);
         const wasAlive = u.alive;
-        // T-Cell's Apoptosis zone poisons right through Invisibility/Cloak --
-        // that's the whole point of the ability.
-        damageUnit(u, hz.tickDamage, owner, world, false, hz.type === 'reveal');
+        damageUnit(u, hz.tickDamage, owner, world, false);
         if (wasAlive && !u.alive) {
           hz.hp -= 1;
           if (hz.hp <= 0) hz.dead = true;

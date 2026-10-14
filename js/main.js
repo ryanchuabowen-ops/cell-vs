@@ -497,6 +497,7 @@
     const prevLocked = primaryLockedState[localUnit.id];
     if (prevLocked === true && locked === false) showUnlockBanner(primaryAb.name);
     primaryLockedState[localUnit.id] = locked;
+    pIcon.classList.toggle('bonus-charge', !!localUnit.bonusPrimaryCharge);
     $('ability-primary-name').textContent = primaryAb.name;
     $('ability-secondary-name').textContent = secondaryAb.name;
   }

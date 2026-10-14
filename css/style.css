@@ -291,6 +291,19 @@ button:active { transform: translateY(0); }
   50% { box-shadow: 0 0 20px rgba(255,209,102,0.95), inset 0 0 10px rgba(255,209,102,0.5); }
 }
 
+/* A banked T-Cell bonus charge (a free extra RMB use with no cooldown) --
+   a small corner badge, separate from the locked treatment above. */
+.bonus-badge {
+  display: none;
+  position: absolute; top: 2px; right: 2px;
+  font-size: 9px; font-weight: 800; line-height: 1;
+  padding: 2px 3px; border-radius: 5px;
+  background: #7cffcb; color: #06241c;
+  z-index: 3;
+  box-shadow: 0 0 6px rgba(124,255,203,0.85);
+}
+.ability-icon.bonus-charge .bonus-badge { display: block; }
+
 #unlock-banner {
   position: absolute; top: 34%; left: 50%;
   transform: translate(-50%, -50%) scale(0.75);

@@ -206,6 +206,12 @@ const Game = (() => {
       waveTimer: PVE_TIER_DURATION,
       spawnTimer: 1,
       heroLives: 5,
+      // PvE dynamic difficulty: tracks the hero's recent death timestamps so
+      // a player who keeps dying gets extra floaty recharge kits dropped in
+      // to help them recover, instead of staying stuck at the same sparse
+      // pickup count the whole run.
+      heroDeathTimes: [],
+      pveAssistBoosts: 0,
       // Reference, not a copy -- Ebola's ultimate-unlock check in entities.js
       // reads this directly, and it must stay in sync with later score updates.
       scores
@@ -261,6 +267,7 @@ const Game = (() => {
     u.supportedUntil = 0;
     u.spinAccum = 0;
     u.dizzyUntil = 0;
+    u.bonusPrimaryCharge = false;
     placeAtSpawn(u, w);
   }
 
@@ -371,6 +378,39 @@ const Game = (() => {
       if (u.cd.secondary > 0) u.cd.secondary = Math.max(0, u.cd.secondary - extra);
       if (u.cd.wall > 0) u.cd.wall = Math.max(0, u.cd.wall - extra);
     }
+  }
+
+  const PVE_DEATH_WINDOW = 75;
+  const PVE_DEATH_THRESHOLD = 2;
+  const PVE_MAX_ASSIST_BOOSTS = 4;
+
+  // Dynamic difficulty: a player dying repeatedly in a short span gets a
+  // couple of extra floaty recharge kits dropped onto the map to help them
+  // recover, instead of the pickup count staying flat regardless of how the
+  // run is going. Caps out after a few boosts so it can't snowball forever.
+  function checkPveDifficultyAssist() {
+    world.heroDeathTimes.push(world.time);
+    world.heroDeathTimes = world.heroDeathTimes.filter(t => world.time - t < PVE_DEATH_WINDOW);
+    if (world.heroDeathTimes.length < PVE_DEATH_THRESHOLD) return;
+    if (world.pveAssistBoosts >= PVE_MAX_ASSIST_BOOSTS) return;
+    world.pveAssistBoosts++;
+    world.heroDeathTimes = [];
+    for (let i = 0; i < 2; i++) {
+      let x, y, tries = 0;
+      do {
+        x = 250 + Math.random() * (WORLD_W - 500);
+        y = 120 + Math.random() * (WORLD_H - 240);
+        tries++;
+      } while (tries < 20 && nearSpawn(x, y));
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 30 + Math.random() * 40;
+      world.pickups.push({
+        id: 'assist' + world.pveAssistBoosts + '_' + i, type: 'recharge', x, y, readyAt: 0,
+        respawnDelay: PVE_PICKUP_RESPAWN_DELAY, floaty: true, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed
+      });
+    }
+    killFeed.unshift({ type: 'text', text: 'Rough fight -- extra recharge kits have drifted in to help.' });
+    if (killFeed.length > 6) killFeed.pop();
   }
 
   function updatePickups() {
@@ -491,7 +531,10 @@ const Game = (() => {
           const w = ev.weaponShape || 'dot';
           playerStats.weaponKills[w] = (playerStats.weaponKills[w] || 0) + 1;
         }
-        if (isLocalVictim) playerStats.deaths++;
+        if (isLocalVictim) {
+          playerStats.deaths++;
+          if (mode === 'pve') checkPveDifficultyAssist();
+        }
         killFeed.unshift({
           type: 'kill',
           killerName: killerUnit ? killerUnit.name : 'Something',
@@ -1229,33 +1272,6 @@ const Game = (() => {
         traceNetBlob(hz.x, hz.y, hz.radius, seed, world.time * 0.6);
         ctx.stroke();
         ctx.restore();
-      } else if (hz.type === 'reveal') {
-        // T-Cell's Apoptosis zone -- a pulsing detection sweep instead of a
-        // solid toxic cloud, so it reads as "scanning/exposing" rather than
-        // a plain poison puddle.
-        ctx.save();
-        const fadeIn = Math.min(1, hz.age / 0.3);
-        const fadeOut = Math.min(1, (hz.life - hz.age) / 0.6);
-        const fade = Math.min(fadeIn, fadeOut);
-        ctx.globalAlpha = 0.18 * fade;
-        ctx.fillStyle = '#ff8f6b';
-        ctx.beginPath();
-        ctx.arc(hz.x, hz.y, hz.radius, 0, Math.PI * 2);
-        ctx.fill();
-        const sweepT = (hz.age % 1.2) / 1.2;
-        ctx.globalAlpha = (1 - sweepT) * 0.8 * fade;
-        ctx.strokeStyle = '#ffd9c8';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(hz.x, hz.y, hz.radius * sweepT, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 0.85 * fade;
-        ctx.strokeStyle = 'rgba(255,143,107,0.6)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(hz.x, hz.y, hz.radius, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
       } else if (hz.type === 'mine') {
         // Invisible to the enemy -- only the owner's own team can see where
         // their mines are planted.
@@ -1542,26 +1558,13 @@ const Game = (() => {
     ctx.restore();
   }
 
-  // T-Cell's Apoptosis zone strips stealth from anyone standing inside it,
-  // Coronavirus's own Invisibility included -- checked per-unit against
-  // every live 'reveal' hazard owned by the viewer's own team.
-  function isRevealedByZone(u, local) {
-    if (!local) return false;
-    for (const hz of world.hazards) {
-      if (hz.type !== 'reveal' || hz.team !== local.team) continue;
-      if (Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius) return true;
-    }
-    return false;
-  }
-
   function drawUnits() {
     const local = getLocalUnit();
     for (const u of world.units) {
       if (!u.alive) continue;
       const stealthed = u.invisibleUntil > world.time || u.cloakUntil > world.time;
-      const revealed = stealthed && isRevealedByZone(u, local);
       if (stealthed && local && u.team !== local.team) {
-        if (Math.hypot(u.x - local.x, u.y - local.y) > INVIS_DETECT_RANGE && !revealed) continue;
+        if (Math.hypot(u.x - local.x, u.y - local.y) > INVIS_DETECT_RANGE) continue;
       }
       const def = getCharacter(u.charId);
       const devouring = u.devourUntil > world.time;
@@ -1571,7 +1574,7 @@ const Game = (() => {
       ctx.rotate(u.angle);
       const idlePhase = world.time * 2.2 + u.id * 1.7;
       ctx.scale(1 + Math.sin(idlePhase) * 0.035, 1 + Math.cos(idlePhase * 0.8) * 0.035);
-      if (stealthed && !revealed) ctx.globalAlpha = 0.45;
+      if (stealthed) ctx.globalAlpha = 0.45;
       drawCharacterShape(ctx, u, def, world.time);
       if (u.dizzyUntil > world.time) drawDizzyFace(u.radius);
       if (devouring) {
