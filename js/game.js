@@ -1619,16 +1619,20 @@ const Game = (() => {
       const isFriendly = local && u.team === local.team;
       const labelColor = isLocal ? '#ffe066' : (isFriendly ? '#7cffcb' : '#ff6b6b');
       const labelPrefix = isLocal ? 'YOU' : (isFriendly ? 'ALLY' : 'ENEMY');
+      // The shield bar sits just above the HP bar -- push the name/team
+      // labels (and the dizzy speech bubble) further out to clear it instead
+      // of letting them print right on top of it.
+      const shieldOffset = u.maxShield > 0 ? 12 : 0;
       ctx.fillStyle = labelColor;
       ctx.font = 'bold 10px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(labelPrefix, u.x, u.y - u.radius - 28);
+      ctx.fillText(labelPrefix, u.x, u.y - u.radius - 28 - shieldOffset);
       ctx.fillStyle = '#e7edf5';
       ctx.font = '10px sans-serif';
-      ctx.fillText(def.name, u.x, u.y - u.radius - 18);
+      ctx.fillText(def.name, u.x, u.y - u.radius - 18 - shieldOffset);
 
       if (isLocal && u.dizzyUntil > world.time) {
-        const bx = u.x, by = u.y - u.radius - 46;
+        const bx = u.x, by = u.y - u.radius - 46 - shieldOffset;
         ctx.font = 'bold 11px sans-serif';
         const textW = ctx.measureText('GO ATTACK!').width;
         ctx.fillStyle = 'rgba(10,14,22,0.88)';
