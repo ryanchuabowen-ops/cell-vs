@@ -95,6 +95,16 @@ function updateBotAI(unit, world, dt) {
     return;
   }
 
+  // T-Cell and Ebola are pure support -- no real way to fight on their own
+  // -- so instead of charging the nearest enemy like every other bot, they
+  // hang back near whichever ally needs them most, close enough for their
+  // passive aura to actually land. Their locked area ability still fires
+  // opportunistically once it's ready and enemies are somewhere nearby.
+  if (unit.charId === 'tcell' || unit.charId === 'ebola') {
+    updateSupportBotAI(unit, world);
+    return;
+  }
+
   let enemy = findNearestEnemy(unit, world, DETECT_RANGE);
   const human = findHumanEnemy(unit, world);
   if (human && human.dist < PLAYER_AGGRO_RADIUS) {
@@ -166,4 +176,54 @@ function updateBotAI(unit, world, dt) {
 
   if (unit.cd.secondary <= 0 && dist < engageRange + 40) inp.secondary = true;
   if (unit.cd.primary <= 0 && dist < engageRange * 1.3 && Math.random() < (involvesPlayer ? 0.75 : 0.5)) inp.primary = true;
+}
+
+// T-Cell/Ebola bot movement: shadow whichever ally is the best support
+// target (one actually in a fight wins outright; otherwise whoever's
+// closest) and hold a short distance from them -- close enough to stay
+// inside the aura radius, far enough to not get dragged face-first into
+// melee alongside them.
+function updateSupportBotAI(unit, world) {
+  const inp = unit.input;
+
+  let bestAlly = null, bestScore = -Infinity;
+  for (const u of world.units) {
+    if (!u.alive || u.team !== unit.team || u.id === unit.id) continue;
+    const d = Math.hypot(u.x - unit.x, u.y - unit.y);
+    const inFight = findNearestEnemy(u, world, DETECT_RANGE) ? 1 : 0;
+    const score = inFight * 5000 - d;
+    if (score > bestScore) { bestScore = score; bestAlly = u; }
+  }
+
+  const nearestEnemy = findNearestEnemy(unit, world, DETECT_RANGE);
+  inp.aim = nearestEnemy ? Math.atan2(nearestEnemy.y - unit.y, nearestEnemy.x - unit.x) : unit.angle;
+
+  if (!bestAlly) {
+    const target = getAdvanceTarget(unit, world);
+    const dx = target.x - unit.x, dy = target.y - unit.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 30) {
+      const s = steer(unit, world, dx / dist, dy / dist);
+      inp.mx = s.mx; inp.my = s.my;
+    } else { inp.mx = 0; inp.my = 0; }
+  } else {
+    const dx = bestAlly.x - unit.x, dy = bestAlly.y - unit.y;
+    const dist = Math.hypot(dx, dy);
+    const holdRange = 55;
+    let mx = 0, my = 0;
+    if (dist > holdRange) { mx = dx; my = dy; }
+    else if (dist < holdRange * 0.5) { mx = -dx; my = -dy; }
+    const len = Math.hypot(mx, my);
+    if (len > 0.01) {
+      const s = steer(unit, world, mx / len, my / len);
+      inp.mx = s.mx; inp.my = s.my;
+    } else { inp.mx = 0; inp.my = 0; }
+  }
+
+  // The locked area ability (gated/cooldown checks happen upstream) fires
+  // opportunistically once enemies are massed somewhere within range.
+  if (nearestEnemy) {
+    const d = Math.hypot(nearestEnemy.x - unit.x, nearestEnemy.y - unit.y);
+    if (unit.cd.primary <= 0 && d < 450 && Math.random() < 0.5) inp.primary = true;
+  }
 }
