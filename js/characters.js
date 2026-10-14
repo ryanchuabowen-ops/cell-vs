@@ -60,7 +60,7 @@ const CHARACTERS = {
       desc: 'A self-guided missile that hunts down the nearest enemy Coronavirus -- cloaked or not -- and instantly kills it on contact. Fizzles with no effect if no Coronavirus is on the field.'
     },
     secondary: {
-      name: 'Rapid Healing', type: 'heal_aura', cooldown: 0.3, auto: true,
+      name: 'Rapid Healing', type: 'heal_aura', cooldown: 0.45, auto: true,
       radius: 75, healFraction: 0.05, supportWindow: 5, touchBuffer: 22,
       desc: 'Passive -- any ally that gets close is steadily healed, and one that gets right up against the T-Cell is healed to full instantly. Always active, no input needed. A healed ally who kills or deals damage soon after credits the T-Cell with an assist and a cut of the damage.'
     }
@@ -238,7 +238,7 @@ CHARACTERS.bacterium.primaryOptions = [
 CHARACTERS.tcell.secondaryOptions = [
   CHARACTERS.tcell.secondary,
   {
-    name: 'Rapid Recharge', type: 'recharge_aura', cooldown: 0.3, auto: true,
+    name: 'Rapid Recharge', type: 'recharge_aura', cooldown: 0.45, auto: true,
     radius: 75, rechargeAmount: 0.6, supportWindow: 5,
     desc: 'Passive -- speeds up nearby allies\' ability cooldowns. An ally you recharge who lands a kill credits you with an assist, and 60% of any damage they deal while recharged counts toward your own damage total too.'
   }
