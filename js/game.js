@@ -259,6 +259,8 @@ const Game = (() => {
     u.cloakUntil = 0;
     u.supportedBy = null;
     u.supportedUntil = 0;
+    u.spinAccum = 0;
+    u.dizzyUntil = 0;
     placeAtSpawn(u, w);
   }
 
@@ -1517,6 +1519,29 @@ const Game = (() => {
     }
   }
 
+  // Easter egg payoff: X_X eyes and an unhappy mouth, drawn in the same
+  // rotated local space as the character art so it spins right along with
+  // whatever cursor-spinning got it into this state in the first place.
+  function drawDizzyFace(r) {
+    ctx.save();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const eyeOffset = r * 0.32, eyeSize = r * 0.15, eyeY = -r * 0.1;
+    for (const side of [-1, 1]) {
+      const ex = side * eyeOffset;
+      ctx.beginPath();
+      ctx.moveTo(ex - eyeSize, eyeY - eyeSize); ctx.lineTo(ex + eyeSize, eyeY + eyeSize);
+      ctx.moveTo(ex + eyeSize, eyeY - eyeSize); ctx.lineTo(ex - eyeSize, eyeY + eyeSize);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.3, r * 0.34);
+    ctx.quadraticCurveTo(0, r * 0.2, r * 0.3, r * 0.34);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // T-Cell's Apoptosis zone strips stealth from anyone standing inside it,
   // Coronavirus's own Invisibility included -- checked per-unit against
   // every live 'reveal' hazard owned by the viewer's own team.
@@ -1548,6 +1573,7 @@ const Game = (() => {
       ctx.scale(1 + Math.sin(idlePhase) * 0.035, 1 + Math.cos(idlePhase * 0.8) * 0.035);
       if (stealthed && !revealed) ctx.globalAlpha = 0.45;
       drawCharacterShape(ctx, u, def, world.time);
+      if (u.dizzyUntil > world.time) drawDizzyFace(u.radius);
       if (devouring) {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
@@ -1600,6 +1626,20 @@ const Game = (() => {
       ctx.fillStyle = '#e7edf5';
       ctx.font = '10px sans-serif';
       ctx.fillText(def.name, u.x, u.y - u.radius - 18);
+
+      if (isLocal && u.dizzyUntil > world.time) {
+        const bx = u.x, by = u.y - u.radius - 46;
+        ctx.font = 'bold 11px sans-serif';
+        const textW = ctx.measureText('GO ATTACK!').width;
+        ctx.fillStyle = 'rgba(10,14,22,0.88)';
+        ctx.strokeStyle = 'rgba(255,224,102,0.8)';
+        ctx.lineWidth = 1.5;
+        roundRectPath(ctx, bx - textW / 2 - 8, by - 10, textW + 16, 20, 6);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#ffe066';
+        ctx.fillText('GO ATTACK!', bx, by + 4);
+      }
     }
   }
 

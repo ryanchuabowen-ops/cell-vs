@@ -37,6 +37,9 @@ function createUnit(charId, team, controllerType, loadout) {
     invisibleUntil: 0,
     cloakUntil: 0,
     tempShieldUntil: 0,
+    spinAccum: 0,
+    lastAngleForSpin: 0,
+    dizzyUntil: 0,
     supportedBy: null,
     supportedUntil: 0,
     ultimateUsed: false,
@@ -734,6 +737,25 @@ function updateUnit(unit, world, dt) {
       unit.y += (inp.my / len) * speed * dt;
     }
     unit.angle = inp.aim;
+
+    // Easter egg: standing still and spinning the aim cursor around the cell
+    // 5+ full turns (without moving) makes it visibly dizzy and annoyed --
+    // reversing direction partway through un-does the count instead of
+    // adding to it, same as actually completing fewer real turns.
+    if (unit.controllerType === 'local') {
+      if (len <= 0.001) {
+        let delta = unit.angle - unit.lastAngleForSpin;
+        delta = ((delta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+        unit.spinAccum += delta;
+        if (Math.abs(unit.spinAccum) >= Math.PI * 2 * 5) {
+          unit.dizzyUntil = world.time + 4;
+          unit.spinAccum = 0;
+        }
+      } else {
+        unit.spinAccum = 0;
+      }
+      unit.lastAngleForSpin = unit.angle;
+    }
   }
 
   resolveWallCollision(unit, world.obstacles);

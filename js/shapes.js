@@ -90,8 +90,12 @@ function drawEccentric(ctx, u, def, time) {
   ctx.fillStyle = def.dark;
   ctx.beginPath();
   const nucleusPulse = 1 + Math.sin(tt * 1.8 + u.id) * 0.1;
-  const nx0 = -r * 0.25 + Math.cos(tt * 1.2 + u.id) * r * 0.06;
-  const ny0 = Math.sin(tt * 1.4 + u.id) * r * 0.06;
+  // Drifts opposite to the whole body's own idle breathing pulse (the
+  // scale animation applied in drawUnits) -- when the body swells out, the
+  // nucleus is pushed the other way, like a squishy mass sloshing inside.
+  const breathPhase = tt * 2.2 + u.id * 1.7;
+  const nx0 = -r * 0.25 - Math.sin(breathPhase) * r * 0.09;
+  const ny0 = -Math.cos(breathPhase * 0.8) * r * 0.09;
   ctx.arc(nx0, ny0, r * 0.52 * nucleusPulse, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
@@ -181,8 +185,10 @@ function drawTCell(ctx, u, def, time) {
   const r = u.radius;
   const tt = (time || 0);
   const pulse = 1 + Math.sin(tt * 2.1 + u.id) * 0.13;
-  const nx = Math.cos(tt * 1.3 + u.id) * r * 0.08;
-  const ny = Math.sin(tt * 1.5 + u.id * 1.4) * r * 0.08;
+  // Same opposite-of-the-body's-breathing drift as the B-Cell's nucleus.
+  const breathPhase = tt * 2.2 + u.id * 1.7;
+  const nx = -Math.sin(breathPhase) * r * 0.09;
+  const ny = -Math.cos(breathPhase * 0.8) * r * 0.09;
   drawCellBase(ctx, r, def.color, def.dark);
   ctx.fillStyle = def.dark;
   ctx.globalAlpha = 0.92;
