@@ -60,7 +60,7 @@ const CHARACTERS = {
       desc: 'A self-guided missile that hunts down the nearest enemy Coronavirus -- cloaked or not -- and instantly kills it on contact. Fizzles with no effect if no Coronavirus is on the field.'
     },
     secondary: {
-      name: 'Rapid Healing', type: 'heal_aura', cooldown: 0.4, auto: true,
+      name: 'Rapid Healing', type: 'heal_aura', cooldown: 0.2, auto: true,
       radius: 75, healFraction: 0.05, supportWindow: 5, touchBuffer: 22,
       desc: 'Passive -- any ally that gets close is steadily healed, and one that gets right up against the T-Cell is healed to full instantly. Always active, no input needed. A healed ally who kills or deals damage soon after credits the T-Cell with an assist and a cut of the damage.'
     }
@@ -126,7 +126,7 @@ const CHARACTERS = {
       desc: 'A one-time ultimate -- locked out entirely until the team has racked up half the kills needed to win, and gone for good the instant it is used. Permanently poisons a large area of the map; any enemy standing inside it takes steady damage for the rest of the match.'
     },
     secondary: {
-      name: 'Shielding', type: 'shield_aura', cooldown: 0.4, auto: true,
+      name: 'Shielding', type: 'shield_aura', cooldown: 0.2, auto: true,
       radius: 75, shieldAmount: 45, duration: 5,
       desc: 'Passive -- any allied pathogen that stays close or touching gets a temporary 5s shield that soaks up damage before HP. Always active, no input needed. A shielded ally who kills or deals damage soon after credits Ebola with an assist and a cut of the damage.'
     }
@@ -238,7 +238,7 @@ CHARACTERS.bacterium.primaryOptions = [
 CHARACTERS.tcell.secondaryOptions = [
   CHARACTERS.tcell.secondary,
   {
-    name: 'Rapid Recharge', type: 'recharge_aura', cooldown: 0.4, auto: true,
+    name: 'Rapid Recharge', type: 'recharge_aura', cooldown: 0.2, auto: true,
     radius: 75, rechargeAmount: 0.6, supportWindow: 5,
     desc: 'Passive -- speeds up nearby allies\' ability cooldowns. An ally you recharge who lands a kill credits you with an assist, and 60% of any damage they deal while recharged counts toward your own damage total too.'
   }
@@ -247,7 +247,7 @@ CHARACTERS.tcell.secondaryOptions = [
 CHARACTERS.ebola.secondaryOptions = [
   CHARACTERS.ebola.secondary,
   {
-    name: 'Viral Cloak', type: 'cloak_aura', cooldown: 0.4, auto: true,
+    name: 'Viral Cloak', type: 'cloak_aura', cooldown: 0.2, auto: true,
     radius: 75, duration: 6,
     desc: 'Passive -- hides nearby allied pathogens from enemy view. Unlike Coronavirus\'s own Invisibility, it grants no immunity -- a cloaked ally stays fully targetable and can still be hit and killed as normal.'
   }
