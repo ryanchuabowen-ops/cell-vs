@@ -233,11 +233,11 @@
   function phageGroup() {
     return { title: 'Phage Hero (fights alongside the immune side)', cls: 'phage-title', entries: PHAGE_IDS.map(id => ({ def: CHARACTERS[id], charId: id })) };
   }
-  function immuneGroup(subtitle) {
-    return { title: 'Immune Cells' + (subtitle ? ' (' + subtitle + ')' : ''), cls: 'immune-title', entries: IMMUNE_IDS.map(id => ({ def: CHARACTERS[id], charId: id })) };
+  function immuneGroup(subtitle, ids) {
+    return { title: 'Immune Cells' + (subtitle ? ' (' + subtitle + ')' : ''), cls: 'immune-title', entries: (ids || IMMUNE_IDS).map(id => ({ def: CHARACTERS[id], charId: id })) };
   }
-  function pathogenGroup(subtitle) {
-    return { title: 'Pathogens' + (subtitle ? ' (' + subtitle + ')' : ''), cls: 'pathogen-title', entries: PATHOGEN_IDS.map(id => ({ def: CHARACTERS[id], charId: id })) };
+  function pathogenGroup(subtitle, ids) {
+    return { title: 'Pathogens' + (subtitle ? ' (' + subtitle + ')' : ''), cls: 'pathogen-title', entries: (ids || PATHOGEN_IDS).map(id => ({ def: CHARACTERS[id], charId: id })) };
   }
 
   function buildCharacterShowcase() {
@@ -329,7 +329,10 @@
     const title = $('charselect-title');
     charSelectPicker.reset();
 
-    if (action === 'pvbot') {
+    if (action === 'pvbot10') {
+      title.textContent = 'Choose your character';
+      buildGroupedGrid(grid, [immuneGroup(null, IMMUNE_IDS_CLASSIC), pathogenGroup(null, PATHOGEN_IDS_CLASSIC)], (card, charId) => charSelectPicker.select(card, charId), true);
+    } else if (action === 'pvbot16') {
       title.textContent = 'Choose your character';
       buildGroupedGrid(grid, [immuneGroup(), pathogenGroup()], (card, charId) => charSelectPicker.select(card, charId), true);
     } else if (action === 'pve') {
@@ -346,9 +349,9 @@
     const sel = charSelectPicker.getSelection();
     if (!sel.charId) { alert('Pick a character first.'); return; }
     saveLoadout(sel.charId, sel.loadout);
-    if (pendingAction === 'pvbot') {
+    if (pendingAction === 'pvbot10' || pendingAction === 'pvbot16') {
       showScreen('screen-game');
-      Game.setupPvBot(sel.charId, sel.loadout);
+      Game.setupPvBot(sel.charId, sel.loadout, pendingAction === 'pvbot10' ? 'classic' : 'full');
     } else if (pendingAction === 'pve') {
       showScreen('screen-game');
       Game.setupPvEOffline(sel.charId, sel.loadout);
@@ -520,9 +523,13 @@
     let firstId;
 
     // Both modes respawn from a flat, team-locked pool: pvbot locks to your
-    // side, PvE locks to the phage heroes the mode is built around.
+    // side (and to Classic's 3-a-side roster if that's the variant in play),
+    // PvE locks to the phage heroes the mode is built around.
     grid.className = 'char-grid small compact';
-    const pool = mode === 'pvbot' ? (localUnit.team === 'immune' ? IMMUNE_IDS : PATHOGEN_IDS) : PHAGE_IDS;
+    const classic = world.pvbotVariant === 'classic';
+    const immunePool = classic ? IMMUNE_IDS_CLASSIC : IMMUNE_IDS;
+    const pathogenPool = classic ? PATHOGEN_IDS_CLASSIC : PATHOGEN_IDS;
+    const pool = mode === 'pvbot' ? (localUnit.team === 'immune' ? immunePool : pathogenPool) : PHAGE_IDS;
     grid.innerHTML = '';
     for (const id of pool) {
       const card = makeCharCard(CHARACTERS[id], { compact: true, charId: id });

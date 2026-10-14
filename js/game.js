@@ -1,4 +1,7 @@
 const WIN_SCORE = 100;
+// 10v10 Classic keeps the original win score it was balanced around, from
+// before the team size grew to 16v16.
+const CLASSIC_WIN_SCORE = 60;
 const MATCH_DURATION = 360;
 const FLAG_RADIUS = 95;
 const CAPTURE_RATE = 1 / 6;
@@ -214,7 +217,10 @@ const Game = (() => {
       pveAssistBoosts: 0,
       // Reference, not a copy -- Ebola's ultimate-unlock check in entities.js
       // reads this directly, and it must stay in sync with later score updates.
-      scores
+      scores,
+      // setupPvBot overrides this per variant; the default just covers PvE,
+      // where it's only read by a T-Cell/Ebola ally's ultimate-unlock check.
+      winScore: WIN_SCORE
     };
   }
 
@@ -602,8 +608,8 @@ const Game = (() => {
     }
     world._evCursor = world.events.length;
     if (mode === 'pvbot' && !matchOver) {
-      if (scores.immune >= WIN_SCORE) { matchOver = true; matchResult = 'immune'; }
-      else if (scores.pathogen >= WIN_SCORE) { matchOver = true; matchResult = 'pathogen'; }
+      if (scores.immune >= world.winScore) { matchOver = true; matchResult = 'immune'; }
+      else if (scores.pathogen >= world.winScore) { matchOver = true; matchResult = 'pathogen'; }
       else if (world.matchTime <= 0) {
         matchOver = true;
         matchResult = scores.immune === scores.pathogen ? 'draw' : (scores.immune > scores.pathogen ? 'immune' : 'pathogen');
@@ -627,18 +633,26 @@ const Game = (() => {
   }
 
   // ---------- Mode setup ----------
-  function setupPvBot(charId, loadout) {
+  function setupPvBot(charId, loadout, variant) {
     resetState();
     world = createWorld();
     world.flags = createFlags();
     mode = 'pvbot';
+    // Classic is the original 3-a-side roster and 10v10 team size, from
+    // before T-Cell/Ebola existed; full is the current 4-a-side 16v16.
+    const classic = variant === 'classic';
+    world.pvbotVariant = classic ? 'classic' : 'full';
+    world.winScore = classic ? CLASSIC_WIN_SCORE : WIN_SCORE;
+    const immunePool = classic ? IMMUNE_IDS_CLASSIC : IMMUNE_IDS;
+    const pathogenPool = classic ? PATHOGEN_IDS_CLASSIC : PATHOGEN_IDS;
+    const teamSize = classic ? 10 : 16;
     const side = getCharacter(charId).side;
     const local = createUnit(charId, side, 'local', loadout);
     placeAtSpawn(local, world);
     world.units.push(local);
     localUnitId = local.id;
-    fillBotTeam(world, 'immune', side === 'immune' ? 15 : 16);
-    fillBotTeam(world, 'pathogen', side === 'pathogen' ? 15 : 16);
+    fillBotTeam(world, 'immune', (side === 'immune' ? teamSize - 1 : teamSize), immunePool);
+    fillBotTeam(world, 'pathogen', (side === 'pathogen' ? teamSize - 1 : teamSize), pathogenPool);
     startLoop();
   }
 

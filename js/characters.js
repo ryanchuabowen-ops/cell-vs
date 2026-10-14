@@ -170,6 +170,10 @@ const CHARACTERS = {
 const IMMUNE_IDS = ['macrophage', 'neutrophil', 'bcell', 'tcell'];
 const PATHOGEN_IDS = ['bacterium', 'coronavirus', 'strepA', 'ebola'];
 const PHAGE_IDS = ['phage', 'virophage'];
+// The original 3-a-side roster, from before T-Cell/Ebola existed -- kept
+// around for PvBot's "10 v 10 Classic" mode.
+const IMMUNE_IDS_CLASSIC = ['macrophage', 'neutrophil', 'bcell'];
+const PATHOGEN_IDS_CLASSIC = ['bacterium', 'coronavirus', 'strepA'];
 
 // Neutrophil and Plasma/B-Cell each have two options per slot -- picked at
 // the character-select screen rather than fixed.

@@ -833,15 +833,16 @@ function autoAbilityReady(unit, world, ab) {
 // until the pathogen team reaches half of WIN_SCORE, and permanently locked
 // again (forever) once it has actually been fired.
 function abilityLocked(unit, ab, world) {
+  const target = (world.winScore || WIN_SCORE) / 2;
   if (ab.type === 'permanent_poison') {
     if (unit.ultimateUsed) return true;
-    return !world.scores || world.scores.pathogen < WIN_SCORE / 2;
+    return !world.scores || world.scores.pathogen < target;
   }
   // T-Cell's Apoptosis: locked out until the immune team has racked up half
   // the kills needed to win -- unlike Ebola's ultimate, it stays usable
   // (on its normal cooldown) once unlocked rather than being single-use.
   if (ab.type === 'poison_zone') {
-    return !world.scores || world.scores.immune < WIN_SCORE / 2;
+    return !world.scores || world.scores.immune < target;
   }
   return false;
 }
