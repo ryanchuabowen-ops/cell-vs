@@ -53,9 +53,9 @@ function drawMultilobe(ctx, u, def, time) {
 
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
   for (let i = 0; i < 6; i++) {
-    // Granules drift in a slow little orbit instead of sitting pinned in place.
-    const a = i * 1.15 + u.id + Math.sin(tt * 1.2 + i) * 0.18;
-    const d = r * 0.6 + Math.sin(tt * 1.8 + i * 1.3) * r * 0.05;
+    // Granules swirl around in a loose orbit instead of sitting pinned in place.
+    const a = i * 1.15 + u.id + Math.sin(tt * 1.7 + i) * 0.34;
+    const d = r * 0.6 + Math.sin(tt * 2.3 + i * 1.3) * r * 0.14;
     ctx.beginPath();
     ctx.arc(Math.cos(a) * d, Math.sin(a) * d, r * 0.07, 0, Math.PI * 2);
     ctx.fill();
@@ -70,9 +70,10 @@ function drawMultilobe(ctx, u, def, time) {
     ctx.globalAlpha = 0.85;
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2 + 0.3;
-      const pulse = 1 + Math.sin(tt * 1.6 + i * 2) * 0.08;
+      const pulse = 1 + Math.sin(tt * 2.1 + i * 2) * 0.16;
+      const wx = Math.cos(tt * 1.4 + i) * r * 0.04, wy = Math.sin(tt * 1.6 + i * 1.5) * r * 0.04;
       ctx.beginPath();
-      ctx.arc(Math.cos(a) * r * 0.22, Math.sin(a) * r * 0.22, r * 0.26 * pulse, 0, Math.PI * 2);
+      ctx.arc(Math.cos(a) * r * 0.22 + wx, Math.sin(a) * r * 0.22 + wy, r * 0.26 * pulse, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -88,20 +89,24 @@ function drawEccentric(ctx, u, def, time) {
   ctx.globalAlpha = 0.8;
   ctx.fillStyle = def.dark;
   ctx.beginPath();
-  const nucleusPulse = 1 + Math.sin(tt * 1.5 + u.id) * 0.05;
-  ctx.arc(-r * 0.25, 0, r * 0.52 * nucleusPulse, 0, Math.PI * 2);
+  const nucleusPulse = 1 + Math.sin(tt * 1.8 + u.id) * 0.1;
+  const nx0 = -r * 0.25 + Math.cos(tt * 1.2 + u.id) * r * 0.06;
+  const ny0 = Math.sin(tt * 1.4 + u.id) * r * 0.06;
+  ctx.arc(nx0, ny0, r * 0.52 * nucleusPulse, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 
   ctx.strokeStyle = def.dark;
   ctx.lineWidth = 2;
   for (let i = 0; i < 5; i++) {
-    // Each antibody receptor sways independently around its base angle
-    // instead of standing rigidly fixed, like it's feeling around for antigen.
-    const a = (i / 5) * Math.PI * 2 + u.id + Math.sin(tt * 1.3 + i * 1.7) * 0.1;
+    // Each antibody receptor sways independently around its base angle and
+    // breathes in and out, like it's actively feeling around for antigen
+    // instead of standing rigidly fixed.
+    const a = (i / 5) * Math.PI * 2 + u.id + Math.sin(tt * 1.7 + i * 1.7) * 0.25;
+    const reach = 1 + Math.sin(tt * 2.2 + i * 2.1) * 0.22;
     const nx = Math.cos(a), ny = Math.sin(a);
     const bx = nx * r, by = ny * r;
-    const ex = bx + nx * r * 0.3, ey = by + ny * r * 0.3;
+    const ex = bx + nx * r * 0.3 * reach, ey = by + ny * r * 0.3 * reach;
     const tx = -ny, ty = nx;
     ctx.beginPath();
     ctx.moveTo(bx, by); ctx.lineTo(ex, ey);
@@ -114,7 +119,7 @@ function drawEccentric(ctx, u, def, time) {
 // Bacterium: rod/capsule shape with trailing flagella.
 function drawRod(ctx, u, def, time) {
   const r = u.radius;
-  const tt = (time || 0) * 5;
+  const tt = (time || 0) * 6.5;
   const len = r * 2.1, half = len / 2, cap = r * 0.62;
   ctx.fillStyle = def.color;
   ctx.strokeStyle = def.dark;
@@ -136,7 +141,7 @@ function drawRod(ctx, u, def, time) {
     ctx.beginPath();
     ctx.moveTo(-half + cap * 0.4, i * cap * 0.5);
     for (let s = 1; s <= 4; s++) {
-      ctx.lineTo(-half - s * 5, i * cap * 0.5 + Math.sin(s + u.id + tt) * 4);
+      ctx.lineTo(-half - s * 5, i * cap * 0.5 + Math.sin(s + u.id + tt) * 6.5);
     }
     ctx.stroke();
   }
@@ -151,10 +156,11 @@ function drawSpiky(ctx, u, def, spikeCount, spikeLen, time) {
   ctx.fillStyle = def.dark;
   ctx.lineWidth = 2.5;
   for (let i = 0; i < spikeCount; i++) {
-    const a = (i / spikeCount) * Math.PI * 2;
-    // Each spike flutters in and out independently, out of phase with its
-    // neighbors, so the whole crown reads as a living, twitching thing.
-    const len = spikeLen * (1 + Math.sin(tt * 2.6 + i * 1.9 + u.id) * 0.2);
+    // Each spike flutters in length AND sways side to side independently,
+    // out of phase with its neighbors, so the whole crown reads as a living,
+    // twitching thing instead of a fixed pinwheel.
+    const a = (i / spikeCount) * Math.PI * 2 + Math.sin(tt * 2.2 + i * 1.6 + u.id) * 0.1;
+    const len = spikeLen * (1 + Math.sin(tt * 3 + i * 1.9 + u.id) * 0.32);
     const bx = Math.cos(a) * r, by = Math.sin(a) * r;
     const ex = Math.cos(a) * (r + len), ey = Math.sin(a) * (r + len);
     ctx.beginPath();
@@ -174,19 +180,21 @@ function drawSpiky(ctx, u, def, spikeCount, spikeLen, time) {
 function drawTCell(ctx, u, def, time) {
   const r = u.radius;
   const tt = (time || 0);
-  const pulse = 1 + Math.sin(tt * 1.7 + u.id) * 0.06;
+  const pulse = 1 + Math.sin(tt * 2.1 + u.id) * 0.13;
+  const nx = Math.cos(tt * 1.3 + u.id) * r * 0.08;
+  const ny = Math.sin(tt * 1.5 + u.id * 1.4) * r * 0.08;
   drawCellBase(ctx, r, def.color, def.dark);
   ctx.fillStyle = def.dark;
   ctx.globalAlpha = 0.92;
   ctx.beginPath();
-  ctx.arc(0, 0, r * 0.72 * pulse, 0, Math.PI * 2);
+  ctx.arc(nx, ny, r * 0.72 * pulse, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.strokeStyle = def.color;
   ctx.globalAlpha = 0.5;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.arc(0, 0, r * 0.72 * pulse, 0, Math.PI * 2);
+  ctx.arc(nx, ny, r * 0.72 * pulse, 0, Math.PI * 2);
   ctx.stroke();
   ctx.globalAlpha = 1;
 }
@@ -200,11 +208,11 @@ function drawChain(ctx, u, def, time) {
   ctx.strokeStyle = def.dark;
   ctx.lineWidth = 2.5;
   for (let i = 0; i < count; i++) {
-    const cx = (i - (count - 1) / 2) * r * 1.6;
-    // Each bead gently jostles against its neighbors instead of sitting
-    // rigidly locked in a straight row.
-    const cy = Math.sin(tt * 2.1 + i * 1.8 + u.id) * r * 0.16;
-    const jr = r * (1 + Math.sin(tt * 1.9 + i * 2.3 + u.id) * 0.05);
+    // Each bead jostles against its neighbors in both axes instead of
+    // sitting rigidly locked in a straight row.
+    const cx = (i - (count - 1) / 2) * r * 1.6 + Math.sin(tt * 1.7 + i * 2.6 + u.id) * r * 0.14;
+    const cy = Math.sin(tt * 2.4 + i * 1.8 + u.id) * r * 0.28;
+    const jr = r * (1 + Math.sin(tt * 2.2 + i * 2.3 + u.id) * 0.1);
     ctx.beginPath();
     ctx.arc(cx, cy, jr, 0, Math.PI * 2);
     ctx.fill();
@@ -248,7 +256,7 @@ function drawEbola(ctx, u, def, time) {
 function drawPhageLander(ctx, u, def, time) {
   const r = u.radius;
   const tt = (time || 0);
-  const legTwitch = Math.sin(tt * 3 + u.id) * 0.04;
+  const legTwitch = Math.sin(tt * 3.8 + u.id) * 0.1;
   ctx.fillStyle = def.color;
   ctx.strokeStyle = def.dark;
   ctx.lineWidth = 2.5;
