@@ -272,6 +272,35 @@ button:active { transform: translateY(0); }
 .ability-icon small { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; font-size: 8px; color: var(--muted); z-index: 2; }
 .cd-overlay { position: absolute; bottom: 0; left: 0; right: 0; height: 0%; background: rgba(0,0,0,0.75); z-index: 1; }
 
+/* A locked ultimate (T-Cell's Apoptosis, Ebola's Environmental Toxin) needs
+   to read as "gated", not just another grey cooldown sweep -- a bright
+   pulsing border plus a lock glyph punched through everything else. */
+.ability-icon.locked { border-color: #ffd166; animation: lockedPulse 1.5s ease-in-out infinite; }
+.ability-icon.locked .cd-overlay { background: rgba(5,5,10,0.88); height: 100% !important; }
+.ability-icon.locked span, .ability-icon.locked small { opacity: 0.35; }
+.lock-badge {
+  display: none;
+  position: absolute; inset: 0;
+  align-items: center; justify-content: center;
+  font-size: 22px; z-index: 3;
+  filter: drop-shadow(0 0 4px rgba(255,209,102,0.9));
+}
+.ability-icon.locked .lock-badge { display: flex; }
+@keyframes lockedPulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(255,209,102,0.55), inset 0 0 6px rgba(255,209,102,0.25); }
+  50% { box-shadow: 0 0 20px rgba(255,209,102,0.95), inset 0 0 10px rgba(255,209,102,0.5); }
+}
+
+#unlock-banner {
+  position: absolute; top: 34%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.75);
+  font-size: 22px; font-weight: 800; letter-spacing: 1.5px;
+  color: #ffd166; text-shadow: 0 0 18px rgba(255,209,102,0.9), 0 2px 5px rgba(0,0,0,0.85);
+  pointer-events: none; opacity: 0; transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+#unlock-banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
 #respawn-picker {
   position: absolute;
   inset: 0;

@@ -380,6 +380,20 @@
     killBannerTimer = setTimeout(() => el.classList.remove('show'), 1100);
   }
 
+  let unlockBannerTimer = null;
+  function showUnlockBanner(abilityName) {
+    const el = $('unlock-banner');
+    el.textContent = abilityName.toUpperCase() + ' UNLOCKED';
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    if (unlockBannerTimer) clearTimeout(unlockBannerTimer);
+    unlockBannerTimer = setTimeout(() => el.classList.remove('show'), 1600);
+  }
+  // Tracked per unit id so swapping characters (respawning as someone else,
+  // then back) doesn't misfire a banner from stale state.
+  let primaryLockedState = {};
+
   let lastSeenKillEntry = null;
   function renderKillFeed(killFeed) {
     const feed = $('hud-killfeed');
@@ -467,12 +481,22 @@
       shieldBar.classList.add('hidden');
     }
 
-    const pOverlay = $('ability-primary').querySelector('.cd-overlay');
+    const pIcon = $('ability-primary');
+    const pOverlay = pIcon.querySelector('.cd-overlay');
     const sOverlay = $('ability-secondary').querySelector('.cd-overlay');
     const wOverlay = $('ability-wall').querySelector('.cd-overlay');
     pOverlay.style.height = Math.max(0, Math.min(100, (localUnit.cd.primary / primaryAb.cooldown) * 100)) + '%';
     sOverlay.style.height = Math.max(0, Math.min(100, (localUnit.cd.secondary / secondaryAb.cooldown) * 100)) + '%';
     wOverlay.style.height = Math.max(0, Math.min(100, (localUnit.cd.wall / WALL_KIT_COOLDOWN) * 100)) + '%';
+
+    // Score-gated ultimates (T-Cell's Apoptosis, Ebola's Environmental Toxin)
+    // need to read as obviously locked, not just another grey cooldown
+    // sweep -- and flash a banner the instant they actually unlock.
+    const locked = abilityLocked(localUnit, primaryAb, world);
+    pIcon.classList.toggle('locked', locked);
+    const prevLocked = primaryLockedState[localUnit.id];
+    if (prevLocked === true && locked === false) showUnlockBanner(primaryAb.name);
+    primaryLockedState[localUnit.id] = locked;
     $('ability-primary-name').textContent = primaryAb.name;
     $('ability-secondary-name').textContent = secondaryAb.name;
   }

@@ -74,8 +74,6 @@ function createProjectile(owner, x, y, angle, opts) {
     piloted: !!opts.piloted,
     piercing: !!opts.piercing,
     targetId: opts.targetId || null,
-    targetCharId: opts.targetCharId || null,
-    ignoreInvis: !!opts.ignoreInvis,
     color: opts.color || '#ffffff',
     shape: opts.shape || 'dot',
     slow: opts.slow || 0,
@@ -241,15 +239,12 @@ function damageUnit(target, amount, source, world, instaKill, ignoreInvis) {
   }
 }
 
-function findNearestEnemy(unit, world, maxRange, opts) {
-  const charIdFilter = opts && opts.charId;
-  const ignoreInvis = opts && opts.ignoreInvis;
+function findNearestEnemy(unit, world, maxRange) {
   let best = null, bestD = maxRange || Infinity;
   for (const u of world.units) {
     if (!u.alive || u.team === unit.team || u.id === unit.id) continue;
-    if (charIdFilter && u.charId !== charIdFilter) continue;
     const d = Math.hypot(u.x - unit.x, u.y - unit.y);
-    if (!ignoreInvis && u.invisibleUntil > world.time && d > INVIS_DETECT_RANGE) continue;
+    if (u.invisibleUntil > world.time && d > INVIS_DETECT_RANGE) continue;
     if (d < bestD) { bestD = d; best = u; }
   }
   return best;
@@ -275,15 +270,12 @@ function findAttachedEnemy(unit, world, buffer) {
   // is happening" when a player wades into a crowd expecting an instant kill.
   return human || best;
 }
-function findNearestEnemyBySide(p, world, opts) {
-  const charIdFilter = opts && opts.charId;
-  const ignoreInvis = opts && opts.ignoreInvis;
+function findNearestEnemyBySide(p, world) {
   let best = null, bestD = Infinity;
   for (const u of world.units) {
     if (!u.alive || u.team === p.team) continue;
-    if (charIdFilter && u.charId !== charIdFilter) continue;
     const d = Math.hypot(u.x - p.x, u.y - p.y);
-    if (!ignoreInvis && u.invisibleUntil > world.time && d > INVIS_DETECT_RANGE) continue;
+    if (u.invisibleUntil > world.time && d > INVIS_DETECT_RANGE) continue;
     if (d < bestD) { bestD = d; best = u; }
   }
   return best;
@@ -518,14 +510,14 @@ function useAbility(unit, slot, world) {
       }
       break;
     }
-    // T-Cell's Apoptosis: a self-guided missile that only ever locks onto
-    // Coronavirus, and can sense it even while cloaked -- the hard counter to
-    // Coronavirus's own Invisibility.
-    case 'antiviral_missile': {
-      const target = findNearestEnemy(unit, world, ab.range, { charId: 'coronavirus', ignoreInvis: true });
-      if (!target) break;
-      world.projectiles.push(createProjectile(unit, unit.x, unit.y, unit.angle,
-        { speed: ab.speed, damage: 0, life: ab.life, radius: ab.radius, instaKill: true, homing: true, targetId: target.id, targetCharId: 'coronavirus', ignoreInvis: true, color: def.color, shape: ab.shape }));
+    // T-Cell's Apoptosis: locked until the immune team is halfway to
+    // winning (see abilityLocked), then drops a zone that reveals any
+    // cloaked/invisible enemy caught inside (Coronavirus's own Invisibility
+    // included) and poisons them right through that stealth.
+    case 'reveal_poison': {
+      const hx = clamp(unit.x + Math.cos(unit.angle) * ab.range, 20, WORLD_W - 20);
+      const hy = clamp(unit.y + Math.sin(unit.angle) * ab.range, 20, WORLD_H - 20);
+      world.hazards.push(createHazard(unit, 'reveal', hx, hy, ab));
       break;
     }
     // T-Cell's Rapid Healing: a passive aura, re-triggered automatically
@@ -792,9 +784,17 @@ function autoAbilityReady(unit, world, ab) {
 // until the pathogen team reaches half of WIN_SCORE, and permanently locked
 // again (forever) once it has actually been fired.
 function abilityLocked(unit, ab, world) {
-  if (ab.type !== 'permanent_poison') return false;
-  if (unit.ultimateUsed) return true;
-  return !world.scores || world.scores.pathogen < WIN_SCORE / 2;
+  if (ab.type === 'permanent_poison') {
+    if (unit.ultimateUsed) return true;
+    return !world.scores || world.scores.pathogen < WIN_SCORE / 2;
+  }
+  // T-Cell's Apoptosis: locked out until the immune team has racked up half
+  // the kills needed to win -- unlike Ebola's ultimate, it stays usable
+  // (on its normal cooldown) once unlocked rather than being single-use.
+  if (ab.type === 'reveal_poison') {
+    return !world.scores || world.scores.immune < WIN_SCORE / 2;
+  }
+  return false;
 }
 
 const WALL_KIT_COOLDOWN = 11;
@@ -881,7 +881,7 @@ function updateProjectile(p, world, dt) {
   } else if (p.homing) {
     let target = p.targetId ? world.units.find(u => u.id === p.targetId && u.alive) : null;
     if (!target) {
-      target = findNearestEnemyBySide(p, world, { charId: p.targetCharId, ignoreInvis: p.ignoreInvis });
+      target = findNearestEnemyBySide(p, world);
       p.targetId = target ? target.id : null;
     }
     if (target) {
@@ -919,12 +919,11 @@ function updateProjectile(p, world, dt) {
 
   for (const u of world.units) {
     if (!u.alive || u.team === p.team) continue;
-    if (p.targetCharId && u.charId !== p.targetCharId) continue;
     const d = Math.hypot(u.x - p.x, u.y - p.y);
     if (d < u.radius + p.radius + p.hitTolerance) {
       const owner = world.units.find(x => x.id === p.ownerId);
       if (p.aoe > 0) applyAoeDamage(p, world, owner);
-      else damageUnit(u, p.damage, owner, world, p.instaKill, p.ignoreInvis);
+      else damageUnit(u, p.damage, owner, world, p.instaKill);
       if (p.slow > 0 && u.alive) {
         u.slowUntil = world.time + p.slowDuration;
         u.slowAmount = p.slow;
@@ -996,17 +995,19 @@ function updateHazard(hz, world, dt) {
       inside = Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius;
     } else if (hz.type === 'trail' && hz.points.length > 1) {
       inside = distToPolyline(u.x, u.y, hz.points) < 16 + u.radius;
-    } else if (hz.type === 'cloud') {
+    } else if (hz.type === 'cloud' || hz.type === 'reveal') {
       inside = Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius;
     }
     if (inside) {
       // The poison cloud damages but doesn't slow -- it relies on blocking
       // vision and being a no-go zone, not on rooting anyone in place.
-      if (hz.type !== 'cloud') u.slowFactor = Math.max(u.slowFactor || 0, hz.slow);
+      if (hz.type !== 'cloud' && hz.type !== 'reveal') u.slowFactor = Math.max(u.slowFactor || 0, hz.slow);
       if (shouldTick) {
         const owner = world.units.find(x => x.id === hz.ownerId);
         const wasAlive = u.alive;
-        damageUnit(u, hz.tickDamage, owner, world, false);
+        // T-Cell's Apoptosis zone poisons right through Invisibility/Cloak --
+        // that's the whole point of the ability.
+        damageUnit(u, hz.tickDamage, owner, world, false, hz.type === 'reveal');
         if (wasAlive && !u.alive) {
           hz.hp -= 1;
           if (hz.hp <= 0) hz.dead = true;

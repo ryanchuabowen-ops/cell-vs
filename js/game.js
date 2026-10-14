@@ -1227,6 +1227,33 @@ const Game = (() => {
         traceNetBlob(hz.x, hz.y, hz.radius, seed, world.time * 0.6);
         ctx.stroke();
         ctx.restore();
+      } else if (hz.type === 'reveal') {
+        // T-Cell's Apoptosis zone -- a pulsing detection sweep instead of a
+        // solid toxic cloud, so it reads as "scanning/exposing" rather than
+        // a plain poison puddle.
+        ctx.save();
+        const fadeIn = Math.min(1, hz.age / 0.3);
+        const fadeOut = Math.min(1, (hz.life - hz.age) / 0.6);
+        const fade = Math.min(fadeIn, fadeOut);
+        ctx.globalAlpha = 0.18 * fade;
+        ctx.fillStyle = '#ff8f6b';
+        ctx.beginPath();
+        ctx.arc(hz.x, hz.y, hz.radius, 0, Math.PI * 2);
+        ctx.fill();
+        const sweepT = (hz.age % 1.2) / 1.2;
+        ctx.globalAlpha = (1 - sweepT) * 0.8 * fade;
+        ctx.strokeStyle = '#ffd9c8';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(hz.x, hz.y, hz.radius * sweepT, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.85 * fade;
+        ctx.strokeStyle = 'rgba(255,143,107,0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(hz.x, hz.y, hz.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
       } else if (hz.type === 'mine') {
         // Invisible to the enemy -- only the owner's own team can see where
         // their mines are planted.
@@ -1490,12 +1517,26 @@ const Game = (() => {
     }
   }
 
+  // T-Cell's Apoptosis zone strips stealth from anyone standing inside it,
+  // Coronavirus's own Invisibility included -- checked per-unit against
+  // every live 'reveal' hazard owned by the viewer's own team.
+  function isRevealedByZone(u, local) {
+    if (!local) return false;
+    for (const hz of world.hazards) {
+      if (hz.type !== 'reveal' || hz.team !== local.team) continue;
+      if (Math.hypot(u.x - hz.x, u.y - hz.y) < hz.radius + u.radius) return true;
+    }
+    return false;
+  }
+
   function drawUnits() {
     const local = getLocalUnit();
     for (const u of world.units) {
       if (!u.alive) continue;
-      if ((u.invisibleUntil > world.time || u.cloakUntil > world.time) && local && u.team !== local.team) {
-        if (Math.hypot(u.x - local.x, u.y - local.y) > INVIS_DETECT_RANGE) continue;
+      const stealthed = u.invisibleUntil > world.time || u.cloakUntil > world.time;
+      const revealed = stealthed && isRevealedByZone(u, local);
+      if (stealthed && local && u.team !== local.team) {
+        if (Math.hypot(u.x - local.x, u.y - local.y) > INVIS_DETECT_RANGE && !revealed) continue;
       }
       const def = getCharacter(u.charId);
       const devouring = u.devourUntil > world.time;
@@ -1505,7 +1546,7 @@ const Game = (() => {
       ctx.rotate(u.angle);
       const idlePhase = world.time * 2.2 + u.id * 1.7;
       ctx.scale(1 + Math.sin(idlePhase) * 0.035, 1 + Math.cos(idlePhase * 0.8) * 0.035);
-      if (u.invisibleUntil > world.time || u.cloakUntil > world.time) ctx.globalAlpha = 0.45;
+      if (stealthed && !revealed) ctx.globalAlpha = 0.45;
       drawCharacterShape(ctx, u, def, world.time);
       if (devouring) {
         ctx.strokeStyle = '#ffffff';

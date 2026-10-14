@@ -53,14 +53,14 @@ const CHARACTERS = {
     id: 'tcell', name: 'T Cell', side: 'immune',
     color: '#ff8f6b', dark: '#8a3a1f', shape: 'tcell',
     radius: 17, speed: 190, maxHp: 115, regen: 0.03,
-    blurb: 'Pure support specialist -- no general-purpose weapon of its own, just a passive aura that heals or recharges whoever it sticks close to, and a hard-counter missile for Coronavirus specifically. Self-sustains with its own regen, so it never has to retreat to spawn to keep healing others.',
+    blurb: 'Pure support specialist -- no general-purpose weapon of its own, just a passive aura that heals or recharges whoever it sticks close to, and an area reveal/poison tool that unlocks once your team is halfway to winning. Self-sustains with its own regen, so it never has to retreat to spawn to keep healing others.',
     primary: {
-      name: 'Apoptosis', type: 'antiviral_missile', cooldown: 11, shape: 'missile',
-      speed: 480, life: 4.5, radius: 8, range: 1100,
-      desc: 'A self-guided missile that hunts down the nearest enemy Coronavirus -- cloaked or not -- and instantly kills it on contact. Fizzles with no effect if no Coronavirus is on the field.'
+      name: 'Apoptosis', type: 'reveal_poison', cooldown: 16, shape: 'cloud',
+      range: 250, radius: 130, hazardLife: 5, killCap: Infinity, tickDamage: 9, tickInterval: 0.5,
+      desc: 'Locked out until your team has racked up half the kills needed to win. Creates a zone that reveals any cloaked or invisible enemy caught inside -- Coronavirus\'s own Invisibility included -- and poisons them right through that stealth. A damage-over-time area tool, not a quick kill: a long recharge keeps it from becoming a free kill every few seconds.'
     },
     secondary: {
-      name: 'Rapid Healing', type: 'heal_aura', cooldown: 0.45, auto: true,
+      name: 'Rapid Healing', type: 'heal_aura', cooldown: 0.33, auto: true,
       radius: 75, healFraction: 0.05, supportWindow: 5, touchBuffer: 22,
       desc: 'Passive -- any ally that gets close is steadily healed, and one that gets right up against the T-Cell is healed to full instantly. Always active, no input needed. A healed ally who kills or deals damage soon after credits the T-Cell with an assist and a cut of the damage.'
     }
@@ -238,7 +238,7 @@ CHARACTERS.bacterium.primaryOptions = [
 CHARACTERS.tcell.secondaryOptions = [
   CHARACTERS.tcell.secondary,
   {
-    name: 'Rapid Recharge', type: 'recharge_aura', cooldown: 0.45, auto: true,
+    name: 'Rapid Recharge', type: 'recharge_aura', cooldown: 0.33, auto: true,
     radius: 75, rechargeAmount: 0.6, supportWindow: 5,
     desc: 'Passive -- speeds up nearby allies\' ability cooldowns. An ally you recharge who lands a kill credits you with an assist, and 60% of any damage they deal while recharged counts toward your own damage total too.'
   }
