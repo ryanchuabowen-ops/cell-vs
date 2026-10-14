@@ -36,6 +36,7 @@ function createUnit(charId, team, controllerType, loadout) {
     invulnerableUntil: 0,
     invisibleUntil: 0,
     cloakUntil: 0,
+    hitRevealUntil: 0, // briefly forces a stealthed unit to render when a hit actually connects
     tempShieldUntil: 0,
     spinAccum: 0,
     lastAngleForSpin: 0,
@@ -184,6 +185,12 @@ function damageUnit(target, amount, source, world, instaKill) {
   const preHp = target.hp;
   const dealt = instaKill ? preHp : amount;
   world.events.push({ t: 'hit', attackerId: source ? source.id : null, victimId: target.id, x: target.x, y: target.y, amount: dealt, weaponShape: (source && source.lastAbilityShape) || 'dot' });
+
+  // A hit landing on a stealthed unit briefly reveals it -- visual
+  // confirmation the shot connected, same spirit as a hitmarker.
+  if (dealt > 0 && (target.invisibleUntil > world.time || target.cloakUntil > world.time)) {
+    target.hitRevealUntil = world.time + 0.4;
+  }
 
   // A healer/recharger's support shows up in their own stats too, so a pure
   // support character's end screen isn't blank: 60% of every point of damage

@@ -1802,8 +1802,9 @@ const Game = (() => {
     for (const u of world.units) {
       if (!u.alive) continue;
       const stealthed = u.invisibleUntil > world.time || u.cloakUntil > world.time;
+      const hitRevealed = u.hitRevealUntil > world.time;
       if (stealthed && local && u.team !== local.team) {
-        if (Math.hypot(u.x - local.x, u.y - local.y) > INVIS_DETECT_RANGE) continue;
+        if (Math.hypot(u.x - local.x, u.y - local.y) > INVIS_DETECT_RANGE && !hitRevealed) continue;
       }
       const def = getCharacter(u.charId);
       const devouring = u.devourUntil > world.time;
@@ -1813,9 +1814,19 @@ const Game = (() => {
       ctx.rotate(u.angle);
       const idlePhase = world.time * 2.2 + u.id * 1.7;
       ctx.scale(1 + Math.sin(idlePhase) * 0.035, 1 + Math.cos(idlePhase * 0.8) * 0.035);
-      if (stealthed) ctx.globalAlpha = 0.45;
+      if (stealthed) ctx.globalAlpha = hitRevealed ? 0.9 : 0.45;
       drawCharacterShape(ctx, u, def, world.time);
       if (u.dizzyUntil > world.time) drawDizzyFace(u.radius);
+      // A hit that connects on a stealthed unit flashes a brief outline --
+      // confirmation the shot landed even though the target stays hidden.
+      if (stealthed && hitRevealed) {
+        ctx.strokeStyle = 'rgba(255,90,90,0.9)';
+        ctx.lineWidth = 2.5;
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(0, 0, u.radius * 1.2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       if (devouring) {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
