@@ -194,6 +194,14 @@ button:active { transform: translateY(0); }
 #screen-charselect .panel h2 { margin-bottom: 10px; font-size: 20px; }
 #charselect-grid .char-card.compact { padding: 6px; }
 #charselect-grid .char-swatch-canvas { width: 32px; height: 32px; margin-bottom: 2px; }
+
+/* The character showcase (full name/blurb/ability text per card, not the
+   compact in-match picker) needs more room per card than the "small" grid
+   gives it, so it gets its own wider panel and column width instead of
+   fighting the roster's growing character count in the shared 920px/190px
+   sizing. */
+#screen-characters .panel { max-width: 1180px; width: 95%; }
+#screen-characters .char-grid.small { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
 .char-group-title.immune-title { color: var(--immune); }
 .char-group-title.pathogen-title { color: var(--pathogen); }
 .char-group-title.phage-title { color: var(--accent); }

@@ -133,9 +133,13 @@ const Game = (() => {
   let zeusCd = { decloak: 0, cloak: 0, order: 0, floater: 0 };
   let zeusOrderFrom = null; // unit mid-drag for Order Attack
   let zeusDragFloater = null; // floater object mid-drag for Move Floater
+  let zeusAimType = null; // 'decloak' | 'cloak' | null -- press-and-release aim for the two single-target powers
   let zeusDragPos = null; // current world-space mouse position while dragging
   let zeusZoom = 1;
   const ZEUS_COOLDOWNS = { decloak: 7, cloak: 8, order: 6, floater: 6 };
+  // Zeus has no body to move, so WASD is free to use as ability hotkeys
+  // instead, matching the HUD icons' left-to-right order.
+  const ZEUS_KEYS = { KeyW: 'decloak', KeyA: 'cloak', KeyS: 'order', KeyD: 'floater' };
 
   function init(canvasEl) {
     canvas = canvasEl;
@@ -153,7 +157,7 @@ const Game = (() => {
       e.preventDefault();
       if (zeusTeam) {
         if (e.button === 0) handleZeusMouseDown();
-        if (e.button === 2) { zeusArmed = null; zeusOrderFrom = null; zeusDragFloater = null; }
+        if (e.button === 2) { zeusArmed = null; zeusOrderFrom = null; zeusDragFloater = null; zeusAimType = null; }
         return;
       }
       if (e.button === 0) localInputState.secondary = true;
@@ -169,7 +173,10 @@ const Game = (() => {
     });
     canvas.addEventListener('dragstart', e => e.preventDefault());
     canvas.addEventListener('contextmenu', e => e.preventDefault());
-    window.addEventListener('keydown', e => { keys[e.code] = true; });
+    window.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (zeusTeam && ZEUS_KEYS[e.code]) zeusToggleArm(ZEUS_KEYS[e.code]);
+    });
     window.addEventListener('keyup', e => { keys[e.code] = false; });
     // A keyup can get dropped by the OS/browser (alt-tab mid-press, a
     // window/tab switch, key-rollover limits on some keyboards) and leave a
@@ -528,32 +535,52 @@ const Game = (() => {
   // radius that would shrink to a few screen pixels when zoomed far out.
   function zeusClickTolerance() { return 26 / zeusZoom; }
 
+  function zeusFindEnemyNear(wp, tol) {
+    const u = findUnitNearWorld(wp.x, wp.y, tol);
+    return (u && u.team !== zeusTeam) ? u : null;
+  }
+
+  function zeusFindAllyNear(wp, tol) {
+    const u = findUnitNearWorld(wp.x, wp.y, tol);
+    return (u && u.team === zeusTeam) ? u : null;
+  }
+
+  // All four powers share the same gesture: press down to start aiming,
+  // drag to adjust, release over the real target to fire. Pressing and
+  // releasing in place (a plain click) still works since the release point
+  // just ends up the same as the press point.
   function handleZeusMouseDown() {
     const wp = screenToWorldZeus(mouseScreen.x, mouseScreen.y);
     const tol = zeusClickTolerance();
-    if (zeusArmed === 'decloak') {
-      if (zeusDecloak(findUnitNearWorld(wp.x, wp.y, tol))) zeusArmed = null;
-    } else if (zeusArmed === 'cloak') {
-      if (zeusCloak(findUnitNearWorld(wp.x, wp.y, tol))) zeusArmed = null;
-    } else if (zeusArmed === 'order') {
-      if (zeusCd.order <= 0) {
-        const u = findUnitNearWorld(wp.x, wp.y, tol);
-        if (u && u.alive && u.team === zeusTeam) { zeusOrderFrom = u; zeusDragPos = wp; }
-      }
-    } else if (zeusArmed === 'floater') {
-      if (zeusCd.floater <= 0) {
-        const f = findFloaterNearWorld(wp.x, wp.y);
-        if (f) { zeusDragFloater = f; f.vx = 0; f.vy = 0; zeusDragPos = wp; }
-      }
+    if (zeusArmed === 'decloak' && zeusCd.decloak <= 0) {
+      zeusAimType = 'decloak';
+      zeusDragPos = wp;
+    } else if (zeusArmed === 'cloak' && zeusCd.cloak <= 0) {
+      zeusAimType = 'cloak';
+      zeusDragPos = wp;
+    } else if (zeusArmed === 'order' && zeusCd.order <= 0) {
+      const u = zeusFindAllyNear(wp, tol);
+      if (u) { zeusOrderFrom = u; zeusDragPos = wp; }
+    } else if (zeusArmed === 'floater' && zeusCd.floater <= 0) {
+      const f = findFloaterNearWorld(wp.x, wp.y);
+      if (f) { zeusDragFloater = f; f.vx = 0; f.vy = 0; zeusDragPos = wp; }
     }
   }
 
   function handleZeusMouseUp() {
     const wp = screenToWorldZeus(mouseScreen.x, mouseScreen.y);
     const tol = zeusClickTolerance();
+    if (zeusAimType === 'decloak') {
+      if (zeusDecloak(zeusFindEnemyNear(wp, tol))) zeusArmed = null;
+      zeusAimType = null;
+      zeusDragPos = null;
+    } else if (zeusAimType === 'cloak') {
+      if (zeusCloak(zeusFindAllyNear(wp, tol))) zeusArmed = null;
+      zeusAimType = null;
+      zeusDragPos = null;
+    }
     if (zeusOrderFrom) {
-      const target = findUnitNearWorld(wp.x, wp.y, tol);
-      if (zeusOrder(zeusOrderFrom, target)) zeusArmed = null;
+      if (zeusOrder(zeusOrderFrom, zeusFindEnemyNear(wp, tol))) zeusArmed = null;
       zeusOrderFrom = null;
       zeusDragPos = null;
     }
@@ -570,7 +597,7 @@ const Game = (() => {
     if (zeusCd.cloak > 0) zeusCd.cloak = Math.max(0, zeusCd.cloak - dt);
     if (zeusCd.order > 0) zeusCd.order = Math.max(0, zeusCd.order - dt);
     if (zeusCd.floater > 0) zeusCd.floater = Math.max(0, zeusCd.floater - dt);
-    if (zeusOrderFrom || zeusDragFloater) zeusDragPos = screenToWorldZeus(mouseScreen.x, mouseScreen.y);
+    if (zeusOrderFrom || zeusDragFloater || zeusAimType) zeusDragPos = screenToWorldZeus(mouseScreen.x, mouseScreen.y);
     if (zeusDragFloater) {
       const f = zeusDragFloater;
       f.x = clamp(zeusDragPos.x - f.w / 2, 0, WORLD_W - f.w);
@@ -578,10 +605,33 @@ const Game = (() => {
     }
   }
 
+  // Square highlight around a unit so it's obvious exactly who a drag is
+  // currently about to hit, re-evaluated live every frame while aiming.
+  function zeusDrawTargetBox(x, y, radius, color) {
+    const half = radius + 8 / zeusZoom;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5 / zeusZoom;
+    ctx.strokeRect(x - half, y - half, half * 2, half * 2);
+    ctx.restore();
+  }
+
+  const ZEUS_ENEMY_COLOR = 'rgba(255,120,90,0.9)';
+  const ZEUS_ALLY_COLOR = 'rgba(124,255,203,0.9)';
+  const ZEUS_ORDER_COLOR = 'rgba(255,224,102,0.9)';
+
   function drawZeusOverlay() {
+    const tol = zeusClickTolerance();
+    if (zeusAimType === 'decloak' && zeusDragPos) {
+      const t = zeusFindEnemyNear(zeusDragPos, tol);
+      if (t) zeusDrawTargetBox(t.x, t.y, t.radius, ZEUS_ENEMY_COLOR);
+    } else if (zeusAimType === 'cloak' && zeusDragPos) {
+      const t = zeusFindAllyNear(zeusDragPos, tol);
+      if (t) zeusDrawTargetBox(t.x, t.y, t.radius, ZEUS_ALLY_COLOR);
+    }
     if (zeusOrderFrom && zeusDragPos) {
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,224,102,0.85)';
+      ctx.strokeStyle = ZEUS_ORDER_COLOR;
       ctx.lineWidth = 2.5 / zeusZoom;
       ctx.setLineDash([10 / zeusZoom, 6 / zeusZoom]);
       ctx.beginPath();
@@ -589,11 +639,14 @@ const Game = (() => {
       ctx.lineTo(zeusDragPos.x, zeusDragPos.y);
       ctx.stroke();
       ctx.restore();
+      zeusDrawTargetBox(zeusOrderFrom.x, zeusOrderFrom.y, zeusOrderFrom.radius, ZEUS_ORDER_COLOR);
+      const t = zeusFindEnemyNear(zeusDragPos, tol);
+      if (t) zeusDrawTargetBox(t.x, t.y, t.radius, ZEUS_ENEMY_COLOR);
     }
     if (zeusDragFloater) {
       const f = zeusDragFloater;
       ctx.save();
-      ctx.strokeStyle = 'rgba(124,255,203,0.9)';
+      ctx.strokeStyle = ZEUS_ALLY_COLOR;
       ctx.lineWidth = 2.5 / zeusZoom;
       ctx.strokeRect(f.x, f.y, f.w, f.h);
       ctx.restore();
@@ -782,6 +835,7 @@ const Game = (() => {
     zeusCd = { decloak: 0, cloak: 0, order: 0, floater: 0 };
     zeusOrderFrom = null;
     zeusDragFloater = null;
+    zeusAimType = null;
     zeusDragPos = null;
   }
 
@@ -830,7 +884,10 @@ const Game = (() => {
     const reversed = chosenSide === 'pathogen';
     world.pveHeroPool = chosenSide === 'phage' ? PHAGE_IDS : (reversed ? PATHOGEN_IDS : IMMUNE_IDS);
     world.pveEnemyPool = reversed ? IMMUNE_IDS : PATHOGEN_IDS;
-    const allyPool = reversed ? PATHOGEN_IDS : IMMUNE_IDS;
+    // T-Cell is a pure healer/support bot -- fine as a human pick, but as an
+    // AI teammate it just sits passively auraing instead of fighting, so it's
+    // left out of the PvE ally bot-fill pool.
+    const allyPool = (reversed ? PATHOGEN_IDS : IMMUNE_IDS).filter(id => id !== 'tcell');
     const hero = createUnit(charId, 'allies', 'local', loadout);
     placeAtSpawn(hero, world);
     world.units.push(hero);
@@ -1994,6 +2051,16 @@ const Game = (() => {
     return options;
   }
 
+  // Picking a new ability (whether via HUD click or hotkey) cancels whatever
+  // drag/aim was in progress under the old one, so there's never a stale
+  // half-issued order/floater-grab/aim left dangling.
+  function zeusToggleArm(name) {
+    zeusOrderFrom = null;
+    zeusDragFloater = null;
+    zeusAimType = null;
+    zeusArmed = (zeusArmed === name) ? null : name;
+  }
+
   return {
     init, setupPvBot, setupPvEOffline, respawnAs,
     getLocalUnit, stopLoop,
@@ -2002,13 +2069,6 @@ const Game = (() => {
     getZeusTeam: () => zeusTeam,
     getZeusCooldowns: () => zeusCd,
     getZeusArmed: () => zeusArmed,
-    setZeusArmed: (name) => {
-      // Picking a new ability cancels whatever drag was in progress under
-      // the old one, so there's never a stale half-issued order/floater-grab
-      // left dangling.
-      zeusOrderFrom = null;
-      zeusDragFloater = null;
-      zeusArmed = (zeusArmed === name) ? null : name;
-    }
+    setZeusArmed: zeusToggleArm
   };
 })();
